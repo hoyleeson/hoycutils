@@ -30,3 +30,11 @@
 
 # Debug files
 *.dSYM/
+
+# PROJ file
+*.PROJ/
+
+# Other file
+*.in
+*.swp
+_install/
