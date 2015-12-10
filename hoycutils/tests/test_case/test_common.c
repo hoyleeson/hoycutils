@@ -4,9 +4,6 @@
 
 #include <common/list.h>
 #include <common/configs.h>
-#include <common/fifo.h>
-
-#include "test_case.h"
 
 
 struct test_list_st
@@ -46,27 +43,4 @@ int test_configs(int argc, char **argv)
 	exec_deamons();
 	return 0;
 }
-
-int test_fifo(int argc, char **argv)
-{
-	struct fifo_test {
-		int test;
-		char data[32];
-	};
-	/*DEFINE_FIFO(fifotest, struct fifo_test, 8);
-
-	struct fifo_test *tval;
-	fifo_get(fifotest, tval);
-*/
-	//DECLARE_FIFO(fifotest2, struct fifo_test, 4);
-	//INIT_FIFO(fifotest2);
-}
-
-struct test_case cases[] = {
-	{"list", "", test_list},
-	{"configs", "", test_configs},
-	{"fifo", "", test_fifo},
-};
-
-int test_case_size = ARRAY_SIZE(cases);
 
