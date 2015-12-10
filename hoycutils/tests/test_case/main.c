@@ -3,18 +3,7 @@
 
 #include "test_case.h"
 
-struct test_case
-{
-	char *name;
-	char *desc;
-	int (*func)(int argc, char **argv);
-};
 
-struct test_case cases[] = {
-	{"list", "", test_list},
-	{"list", "", test_configs},
-
-};
 
 int main(int argc, char **argv)
 {
@@ -23,7 +12,7 @@ int main(int argc, char **argv)
 	int result = 0;
 	struct test_case *tcase;
 
-	for(i=0; i<ARRAY_SIZE(cases); i++) {
+	for(i=0; i<test_case_size; i++) {
 		tcase = cases + i;
 		if(tcase->func != NULL) {
 			printf("\n\n==========================================================\n");
