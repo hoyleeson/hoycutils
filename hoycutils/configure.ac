@@ -25,6 +25,9 @@ AC_PROG_LIBTOOL
 
 # Substitutions for .in files
 
+AC_CHECK_FUNCS(getpagesizes)
+AC_CHECK_FUNCS(memcntl)
+
 AC_DEFINE(CONFIG_POOL_THREAD_COUNT, 16, "Max number of threads in the thread pool.")
 AC_DEFINE(CONFIG_CONFIGS_FILE_NAME, "configs.conf", "System configs file name.")
 
