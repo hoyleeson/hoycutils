@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = foreign
 
-INCLUDES= -I$(top_srcdir)/include 
+AM_CFLAGS = -I$(top_srcdir)/include 
 
 noinst_LIBRARIES = libcommon.a
 libcommon_a_SOURCES = common.c log.c notifier.c timer.c utils.c wait.c workqueue.c \

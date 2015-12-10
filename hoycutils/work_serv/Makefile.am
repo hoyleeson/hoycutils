@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = foreign
 
-INCLUDES= -I$(top_srcdir)/include
+AM_CFLAGS = -I$(top_srcdir)/include
 
 bin_PROGRAMS = work_serv
 work_serv_SOURCES = work_serv.c 

@@ -1,7 +1,7 @@
 AUTOMAKE_OPTIONS = foreign
 
 
-INCLUDES= -I$(top_srcdir)/include
+AM_CFLAGS = -I$(top_srcdir)/include
 
 noinst_PROGRAMS = test_case
 test_case_SOURCES = main.c test_case.h test_common.c

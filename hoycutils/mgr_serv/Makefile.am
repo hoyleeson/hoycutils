@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = foreign
 
-INCLUDES= -I$(top_srcdir)/include
+AM_CFLAGS = -I$(top_srcdir)/include
 
 bin_PROGRAMS = mgr_serv
 mgr_serv_SOURCES = mgr_serv.c 
