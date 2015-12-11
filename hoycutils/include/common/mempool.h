@@ -7,12 +7,15 @@
 
 typedef struct mempool_s {
 	struct list_head free_list;
+	struct list_head dynamic_free_list;
 	pthread_mutex_t lock;
 	uint8_t *buf;
-	uint8_t **extra_ptrs;
 
 	int bsize; /* block size */
+	int init_count; /* initiailized count for blocks ever alloced */
 	int count; /* total count for blocks ever alloced */
+	int used; 	/* used block count */
+	int dynamic_used; 	/* used block count */
 	int limited; /* is resource limited to initial count? */
 } mempool_t;
 
