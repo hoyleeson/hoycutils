@@ -16,6 +16,7 @@
 #define LLONG_MIN	(-LLONG_MAX - 1)
 #define ULLONG_MAX	(~0ULL)
 
+#define PAGE_SIZE 	(4*1024)
 
 #define __ALIGN_COMMON(x, a)		__ALIGN_COMMON_MASK(x, (typeof(x))(a) - 1)
 #define __ALIGN_COMMON_MASK(x, mask)	(((x) + (mask)) & ~(mask))

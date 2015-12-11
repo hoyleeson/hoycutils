@@ -4,8 +4,8 @@ AM_CFLAGS = @GLOBAL_CFLAGS@ -I$(top_srcdir)/include
 noinst_LIBRARIES = libcommon.a
 libcommon_a_SOURCES = common.c log.c notifier.c timer.c utils.c wait.c workqueue.c \
 					  completion.c parser.c configs.c mempool.c commands.c poller.c \
-					  fifo.c \
-					  parser.h keywords.h
+					  fifo.c bsearch.c \
+					  parser.h keywords.h memsizes.h
 
 #libcommon_a_LIBADD = librt.a
 
