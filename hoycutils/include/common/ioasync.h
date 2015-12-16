@@ -1,6 +1,7 @@
 #ifndef _COMMON_IOASYNC_H_
 #define _COMMON_IOASYNC_H_
 
+#include <common/packet.h>
 
 /* PACKET RECEIVER
  *
@@ -13,7 +14,7 @@
  * packet source was closed.
  */
 
-typedef void (*post_func) (void* user, Packet *p);
+typedef void (*post_func) (void* user, struct packet *p);
 typedef void (*handle_func) (void* user, uint8_t *data, int len);
 typedef void (*accept_func) (void* user, int acceptfd);
 typedef void (*close_func)(void*  user);

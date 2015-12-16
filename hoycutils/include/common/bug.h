@@ -1,6 +1,8 @@
 #ifndef _COMMON_BUG_H_
 #define _COMMON_BUG_H_
 
+//#define BUG_ON(condition) do { if (unlikely(condition)) BUG(); } while (0) 
+
 #define BUILD_BUG_ON(condition)					\
 	do {							\
 		((void)sizeof(char[1 - 2*!!(condition)]));	\
