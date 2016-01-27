@@ -48,5 +48,6 @@
 
 #define fatal(...) 		do { LOG_PRINT(LOG_FATAL, __VA_ARGS__); exit(1); } while(0)
 
+#define panic(...) 		fatal(__VA_ARGS__);
 
 #endif

@@ -140,7 +140,6 @@ void poller_disable(struct poller*  l, int  fd, int  events)
     }
 }
 
-
 static int poller_exec(struct poller* l) {
 	int  n, count;
 

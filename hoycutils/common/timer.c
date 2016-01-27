@@ -13,7 +13,7 @@
 
 struct timer_base {
 	int clockid;
-	struct iohandler *event;
+	unsigned long event;
 	struct rb_root timer_tree;
 
 	pthread_mutex_t lock;
@@ -284,7 +284,7 @@ static void timer_handler(struct timer_base* base, uint8_t *data, int len)
 
 static void timer_close(struct timer_base* base)
 {
-	base->event = NULL;
+	base->event = 0;
 }
 
 

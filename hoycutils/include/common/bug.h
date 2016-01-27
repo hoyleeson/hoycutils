@@ -1,7 +1,14 @@
 #ifndef _COMMON_BUG_H_
 #define _COMMON_BUG_H_
 
-//#define BUG_ON(condition) do { if (unlikely(condition)) BUG(); } while (0) 
+#include <common/log.h>
+
+#define BUG() do { \
+	loge("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); \
+	panic("BUG!"); \
+} while (0)
+
+#define BUG_ON(condition) do { if (unlikely(condition)) BUG(); } while (0) 
 
 #define BUILD_BUG_ON(condition)					\
 	do {							\
