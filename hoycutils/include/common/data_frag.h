@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define DEFRAG_TIMEOUT      (10 * NSEC2SEC)
+#define DEFRAG_TIMEOUT      (10 * MSEC_PER_SEC)
 /* Reference */
 typedef struct _frag {
     uint16_t id;

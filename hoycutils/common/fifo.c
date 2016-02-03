@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <common/common.h>
 #include <common/fifo.h>
 
 /*

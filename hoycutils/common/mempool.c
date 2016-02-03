@@ -241,7 +241,6 @@ int size_to_index(int size) {
 
 void *__mm_alloc(int size, int node) 
 {
-	void *ret;
 	mempool_t *pool;
 	struct mem_item *item;
 	
@@ -259,7 +258,6 @@ void *__mm_alloc(int size, int node)
 
 void __mm_free(void *ptr, int node) 
 {
-	int i = 0;
 	int size;
 	struct mem_item *item;
 	mempool_t *pool;
@@ -276,7 +274,6 @@ void __mm_free(void *ptr, int node)
 			return;
 	}
 
-found:
 	pool = cachesizes[node].cs_cachep;
 	mempool_free(pool, item);
 }

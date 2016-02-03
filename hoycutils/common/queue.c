@@ -27,7 +27,7 @@ struct packet *queue_out(struct queue *q)
 retry:
 	if(queue_empty(q)) {
 		if(q->flags & QUEUE_F_BLOCK) {
-			pthread_cont_wait(&q->cond, &q->lock);
+			pthread_cond_wait(&q->cond, &q->lock);
 			goto retry;
 		} else {
 			pthread_mutex_unlock(&q->lock);

@@ -1,13 +1,26 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 #include <errno.h>
 
-#include <common/hashmap.h>
 #include <common/timer.h>
 #include <common/log.h>
+#include <common/hash.h>
 #include <common/list.h>
 #include <common/data_frag.h>
+
+
+#define FRAG_HASH_SHIFT     (8)
+#define FRAG_HASH_SZ    (1<<FRAG_HASH_SHIFT)
+
+#define FRAG_HASH_FN(idx, bits) \
+    (hash_long((idx), bits))
+
+#define frag_hash_key(id) \
+        (FRAG_HASH_FN((id), FRAG_HASH_SHIFT))
+
+
 
 #define FRAGS_HASH_CAPACITY     (256)
 
@@ -19,7 +32,7 @@ typedef struct _frag_node {
     uint32_t frag_ofs;    /* max data len: 1MB */
     uint32_t datalen;     /* packet len */
     void *data;
-    struct listnode node;
+    struct list_head node;
     void *pkt;
 } frag_node_t;
 
@@ -27,7 +40,7 @@ struct data_frags {
     int fraglen;
     int nextseq;
     int stat_timeout;
-    Hashmap *maps;
+    struct hlist_head hlist[FRAG_HASH_SZ];
 
     void (*input)(void *opaque, void *data, int len);
     void (*output)(void *opaque, data_vec_t *v);
@@ -40,43 +53,13 @@ typedef struct _frag_queue {
     int id;
     int total_len;
     int recv_len;
-    struct listnode list;
+    struct list_head list;
+    struct hlist_node entry;
     pthread_mutex_t lock;
-    struct timer_item timer;
+    struct timer_list timer;
     struct data_frags *owner;
 } frag_queue_t;
 
-
-data_frags_t *data_frag_init(int fraglen, 
-        void (*input)(void *, void *, int),
-        void (*output)(void *, data_vec_t *v),
-        void (*free_pkt)(void *opaque, void *frag_pkt),
-        void *opaque)
-{
-    data_frags_t *frags;
-
-    frags = (data_frags_t *)malloc(sizeof(*frags));
-    if(!frags)
-        return NULL;
-
-    frags->fraglen = fraglen;
-    frags->stat_timeout = 0;
-    frags->input = input;
-    frags->output = output;
-    frags->free = free_pkt;
-    frags->data = opaque;
-    frags->nextseq = 0;
-    frags->maps = hashmapCreate(FRAGS_HASH_CAPACITY, int_hash, int_equals);
-    pthread_mutex_init(&frags->lock, NULL);
-
-    return frags;
-}
-
-void data_frag_release(data_frags_t *frags)
-{
-    hashmapFree(frags->maps);
-    free(frags);
-}
 
 static inline int alloc_frag_seq(data_frags_t *frags)
 {
@@ -145,7 +128,7 @@ static void frag_queue_free(frag_queue_t *fq)
 
     pthread_mutex_lock(&fq->lock);
     list_for_each_entry_safe(frag, p, &fq->list, node) {
-        list_remove(&frag->node);
+        list_del(&frag->node);
         if(frags->free && frag->pkt)
             frags->free(frags->data, frag->pkt);
 
@@ -161,7 +144,7 @@ static void rm_frag_queue(data_frags_t *frags, frag_queue_t *fq)
 {
     pthread_mutex_lock(&frags->lock);
 
-    hashmapRemove(frags->maps, (void *)fq->id);
+    hlist_del(&fq->entry);
     del_timer(&fq->timer);
     frag_queue_free(fq);
 
@@ -191,29 +174,41 @@ static frag_queue_t *frag_queue_create(data_frags_t *frags, int id)
     fq = (frag_queue_t *)malloc(sizeof(*fq));
 
     fq->id = id;
-    list_init(&fq->list);
     fq->total_len = 0;
     fq->recv_len = 0;
     fq->owner = frags;
+
+    INIT_LIST_HEAD(&fq->list);
     pthread_mutex_init(&fq->lock, NULL);
 
-    init_timer(&fq->timer, defrag_timeout_handle, (unsigned long)fq);
-    add_timer(&fq->timer, get_clock_ns() + DEFRAG_TIMEOUT);
+    init_timer(&fq->timer);
+    setup_timer(&fq->timer, defrag_timeout_handle, (unsigned long)fq);
+    mod_timer(&fq->timer, curr_time_ms() + DEFRAG_TIMEOUT);
 
     return fq;
 }
 
 static frag_queue_t *find_frag_queue(data_frags_t *frags, frag_node_t *frag)
 {
-    frag_queue_t *fq;
+    int key;
+    struct hlist_node *pos;
+    frag_queue_t *fq = NULL;
+
+    key = frag_hash_key(frag->id);
 
     pthread_mutex_lock(&frags->lock);
-    fq = hashmapGet(frags->maps, (void *)frag->id);
+
+    hlist_for_each_entry(fq, pos, &frags->hlist[key], entry) {
+        if(fq->id == frag->id)
+            break;
+    }
+
     if(!fq) {
         fq = frag_queue_create(frags, frag->id);
-        hashmapPut(frags->maps, (void *)frag->id, fq);
+        hlist_add_head(&fq->entry, &frags->hlist[key]);        
     }
     pthread_mutex_unlock(&frags->lock);
+
     return fq;
 }
 
@@ -224,7 +219,7 @@ static int data_frag_insert(frag_queue_t *fq, frag_node_t *frag)
 
     list_for_each_entry(p, &fq->list, node) {
         if(p->frag_ofs < frag->frag_ofs) {
-            list_add(p->node.prev, &frag->node);
+            list_add(&frag->node, p->node.prev);
             return 0;
         }
         else if(p->frag_ofs == frag->frag_ofs) {
@@ -232,7 +227,7 @@ static int data_frag_insert(frag_queue_t *fq, frag_node_t *frag)
         }
     }
 
-    list_add_tail(&p->node, &frag->node);
+    list_add_tail(&frag->node, &p->node);
 
     return 0;
 }
@@ -344,4 +339,51 @@ fail:
     frag_node_free(frag);
     return ret;
 }
+
+data_frags_t *data_frag_init(int fraglen, 
+        void (*input)(void *, void *, int),
+        void (*output)(void *, data_vec_t *v),
+        void (*free_pkt)(void *opaque, void *frag_pkt),
+        void *opaque)
+{
+    int i;
+    data_frags_t *frags;
+
+    frags = (data_frags_t *)malloc(sizeof(*frags));
+    if(!frags)
+        return NULL;
+
+    frags->fraglen = fraglen;
+    frags->stat_timeout = 0;
+    frags->input = input;
+    frags->output = output;
+    frags->free = free_pkt;
+    frags->data = opaque;
+    frags->nextseq = 0;
+
+    for(i=0; i<FRAG_HASH_SZ; i++) {
+        INIT_HLIST_HEAD(&frags->hlist[i]);
+    }
+
+    pthread_mutex_init(&frags->lock, NULL);
+
+    return frags;
+}
+
+void data_frag_release(data_frags_t *frags)
+{
+    int i;
+
+    for(i=0; i<FRAG_HASH_SZ; i++) {
+        frag_queue_t *fq;
+        struct hlist_node *pos; 
+
+        hlist_for_each_entry(fq, pos, &frags->hlist[i], entry) {
+            rm_frag_queue(frags, fq);
+        }
+    }
+
+    free(frags);
+}
+
 

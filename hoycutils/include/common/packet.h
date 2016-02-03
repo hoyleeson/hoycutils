@@ -6,6 +6,8 @@
 #include <common/fake_atomic.h>
 #include <common/mempool.h>
 
+#define PACKET_MAX_PAYLOAD      (2000)
+
 typedef struct _pack_buf pack_buf_t;
 
 struct packet {

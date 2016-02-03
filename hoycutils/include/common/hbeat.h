@@ -1,22 +1,23 @@
 #ifndef _COMMON_HBEAT_H_
 #define _COMMON_HBEAT_H_
 
+#include <pthread.h>
 #include <common/list.h>
 #include <common/timer.h>
 
 #define HBEAT_INIT 		    (3)
-#define HBEAD_DEAD_TIME     (10 * NSEC2SEC)
+#define HBEAD_DEAD_LINE     (10 * MSEC_PER_SEC)
 
 
 typedef struct hbeat_node {
     int count;
     int online;
-    struct listnode node;
+    struct list_head node;
 } hbeat_node_t;
 
 typedef struct hbeat_god {
-    struct listnode list;
-    struct timer_item *timer;
+    struct list_head list;
+    struct timer_list timer;
     void (*dead)(hbeat_node_t *hbeat);
     pthread_mutex_t lock;
 } hbeat_god_t;

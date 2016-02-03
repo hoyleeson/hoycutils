@@ -16,6 +16,13 @@ typedef signed long long s64;
 typedef unsigned long long u64;
 
 
+#ifdef CONFIG_64BIT
+#define BITS_PER_LONG 64
+#else
+#define BITS_PER_LONG 32
+#endif /* CONFIG_64BIT */
+
+
 #ifndef bool
 typedef int bool;
 

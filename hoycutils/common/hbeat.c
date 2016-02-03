@@ -18,14 +18,14 @@ void hbeat_add_to_god(hbeat_god_t *god, hbeat_node_t *hbeat)
     hbeat->online = 1;
 
     pthread_mutex_lock(&god->lock);
-    list_add_tail(&god->list, &hbeat->node);
+    list_add_tail(&hbeat->node, &god->list);
     pthread_mutex_unlock(&god->lock);
 }
 
 void hbeat_rm_from_god(hbeat_god_t *god, hbeat_node_t *hbeat) 
 {
     pthread_mutex_lock(&god->lock);
-    list_remove(&hbeat->node);
+    list_del(&hbeat->node);
     pthread_mutex_unlock(&god->lock);
 }
 
@@ -43,17 +43,19 @@ void hbeat_god_handle(unsigned long data)
         }
     }
 
-    mod_timer(god->timer, get_clock_ns() + HBEAD_DEAD_TIME);
+    mod_timer(&god->timer, curr_time_ms() + HBEAD_DEAD_LINE);
 }
 
 void hbeat_god_init(hbeat_god_t *god, void (*dead)(hbeat_node_t *))
 {
-    list_init(&god->list);
+    INIT_LIST_HEAD(&god->list);
+
     god->dead = dead;
-    god->timer = new_timer(hbeat_god_handle, (unsigned long)god);
+    init_timer(&god->timer);
+    setup_timer(&god->timer, hbeat_god_handle, (unsigned long)god);
     pthread_mutex_init(&god->lock, NULL);
 
-    add_timer(god->timer, get_clock_ns() + HBEAD_DEAD_TIME);
+    mod_timer(&god->timer, curr_time_ms() + HBEAD_DEAD_LINE);
 }
 
 

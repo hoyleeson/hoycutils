@@ -41,6 +41,7 @@ int autoremove_wake_function(wait_queue_t *wait, int sync)
 int default_wake_function(wait_queue_t *curr, int wake_flags)
 {
 	complete(&curr->done);
+    return 0;
 }
 
 static void __wake_up_common(wait_queue_head_t *q, int nr_exclusive, int wake_flags)

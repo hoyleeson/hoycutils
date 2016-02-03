@@ -286,24 +286,28 @@ void init_timer(struct timer_list* timer)
 	rb_init_node(&timer->entry);
 	INIT_LIST_HEAD(&timer->list);
 	timer->state = 0;
+    timer->base = &_timers;
 }
 
-static void timer_handler(struct timer_base* base, uint8_t *data, int len)
+static void timer_handler(void *priv, uint8_t *data, int len)
 {
+    struct timer_base* base = (struct timer_base *)priv;
+
 	run_timers(base);
 }
 
-static void timer_close(struct timer_base* base)
+static void timer_close(void *priv)
 {
+    struct timer_base* base = (struct timer_base *)priv;
+
 	base->ioh = NULL;
 }
 
 
 int init_timers(void)
 {
-	struct timer_base* base;
-	base = &_timers;
     ioasync_t *aio;
+	struct timer_base* base = &_timers;
 
 	base->clockid = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
 
@@ -311,7 +315,7 @@ int init_timers(void)
 
     aio = get_global_ioasync();
 	base->ioh = iohandler_create(aio, base->clockid, 
-			(handle_func)timer_handler, (close_func)timer_close, base);	
+			timer_handler, timer_close, base);	
 	return 0;
 }
 

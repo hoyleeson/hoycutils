@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <common/utils.h>
 #include <common/poller.h>
 #include <common/queue.h>
 #include <common/ioasync.h>
@@ -17,7 +18,7 @@
 
 struct iopacket {
     struct packet packet;
-    struct sockaddr_in addr;
+    struct sockaddr addr;
 };
 
 
@@ -39,16 +40,15 @@ struct ioasync {
     struct list_head closing_list;
 
     pthread_mutex_t lock;
-    pthread_cond_t cond;
 };
 
 
 struct handle_ops {
-    void (*post)(void* priv, struct packet *pkt);
-    void (*accept)(void* priv, int acceptfd);
-    void (*handle)(void* priv, uint8_t *data, int len);
-    void (*handlefrom)(void* priv, uint8_t *data, int len, void *from);
-    void (*close)(void* priv);
+    void (*post)(void *priv, struct iopacket *pkt);
+    void (*accept)(void *priv, int acceptfd);
+    void (*handle)(void *priv, uint8_t *data, int len);
+    void (*handlefrom)(void *priv, uint8_t *data, int len, void *from);
+    void (*close)(void *priv);
 };
 
 enum iohandler_type {
@@ -75,21 +75,27 @@ struct iohandler {
     struct ioasync* owner;
 };
 
-static struct iopacket *iohandler_pack_alloc(iohandler_t *ioh)
+static struct iopacket *iohandler_pack_alloc(iohandler_t *ioh, int allocbuf)
 {
     struct iopacket *pkt;
     ioasync_t *aio = ioh->owner;
 
-    pkt = (struct iopacket *)mempool_alloc(&aio->pkt_pool);
+    pkt = (struct iopacket *)mempool_alloc(aio->pkt_pool);
+    if(allocbuf) {
+        pkt->packet.buf = (pack_buf_t *)alloc_pack_buf(aio->buf_pool);
+    }
 
     return pkt;
 }
 
-static void iohandler_pack_free(iohandler_t *ioh, struct iopacket *pkt)
+static void iohandler_pack_free(iohandler_t *ioh, struct iopacket *pkt, int freebuf)
 {
     ioasync_t *aio = ioh->owner;
 
-    mempool_free(&aio->pkt_pool, pkt);
+    if(freebuf) {
+        free_pack_buf(pkt->packet.buf);
+    }
+    mempool_free(aio->pkt_pool, pkt);
 }
 
 
@@ -99,13 +105,31 @@ static pack_buf_t *iohandler_pack_buf_alloc(iohandler_t *ioh)
     ioasync_t *aio = ioh->owner;
 
     buf = (pack_buf_t *)alloc_pack_buf(aio->buf_pool);
-
     return buf;
 }
 
 static void iohandler_pack_buf_free(pack_buf_t *buf)
 {
     free_pack_buf(buf);
+}
+
+void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *buf)
+{
+    struct iopacket *pack;
+    
+    pack = iohandler_pack_alloc(ioh, 0);
+    pack->packet.buf = buf;
+    queue_in(ioh->q_in, (struct packet *)pack);
+}
+
+void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *buf, struct sockaddr *to)
+{
+    struct iopacket *pack;
+    
+    pack = iohandler_pack_alloc(ioh, 0);
+    pack->packet.buf = buf;
+    pack->addr = *to;
+    queue_in(ioh->q_in, (struct packet *)pack);
 }
 
 void iohandler_send(iohandler_t *ioh, const uint8_t *data, int len)
@@ -119,7 +143,7 @@ void iohandler_send(iohandler_t *ioh, const uint8_t *data, int len)
     iohandler_pkt_send(ioh, buf);
 }
 
-void iohandler_sendto(iohandler_t *ioh, const uint8_t *data, int len, void *to)
+void iohandler_sendto(iohandler_t *ioh, const uint8_t *data, int len, struct sockaddr *to)
 {
     pack_buf_t *buf;
 
@@ -131,26 +155,7 @@ void iohandler_sendto(iohandler_t *ioh, const uint8_t *data, int len, void *to)
 }
 
 
-void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *buf)
-{
-    struct iopacket *pack;
-    
-    pack = iohandler_pack_alloc(ioh);
-    pack->packet.buf = buf;
-    queue_in(ioh->q_in, (struct packet *)pack);
-}
-
-void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *buf, struct sockaddr *to)
-{
-    struct iopacket *pack;
-    
-    pack = iohandler_pack_alloc(ioh);
-    pack->packet.buf = buf;
-    pack->addr = (struct sockaddr_in *)to;
-    queue_in(ioh->q_in, (struct packet *)pack);
-}
-
-static void iohandler_packet_handle(work_struct *work)
+static void iohandler_packet_handle(struct work_struct *work)
 {
     
 }
@@ -167,19 +172,19 @@ static int iohandler_read(iohandler_t* ioh)
     struct iopacket *pack;
     pack_buf_t*  buf;
 
-    pack = iohandler_pack_alloc(ioh);
-    buf = iohandler_pack_buf_alloc(ioh);
-    pack->buf = buf;
+    pack = iohandler_pack_alloc(ioh, 1);
+    buf = pack->packet.buf;
 
     switch(ioh->type) {
         case HANDLER_TYPE_NORMAL:
-            buf->len = fd_read(ioh->fd, buf->data, MAX_PAYLOAD);
+            buf->len = fd_read(ioh->fd, buf->data, PACKET_MAX_PAYLOAD);
             break;
         case HANDLER_TYPE_UDP:
         {
             socklen_t addrlen = sizeof(struct sockaddr_in);
             bzero(&pack->addr, sizeof(pack->addr));
-            buf->len = recvfrom(ioh->fd, &buf->data, MAX_PAYLOAD, 0, &pack->addr, &addrlen);
+            buf->len = recvfrom(ioh->fd, &buf->data, PACKET_MAX_PAYLOAD,
+                    0, &pack->addr, &addrlen);
             break;
         }
         case HANDLER_TYPE_TCP_ACCEPT:
@@ -202,12 +207,11 @@ static int iohandler_read(iohandler_t* ioh)
     return 0;
 
 fail:
-    iohandler_pack_buf_free(buf);
-    iohandler_pack_free(pack);
+    iohandler_pack_free(ioh, pack, 1);
     return -EINVAL;
 }
 
-static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *p)
+static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *pkt)
 {
     int len;
 
@@ -216,9 +220,9 @@ static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *p)
         {
             int out_pos = 0;
             int avail = 0;
-            pack_buf_t *buf = p->packet.buf;
+            pack_buf_t *buf = pkt->packet.buf;
 
-            while(out_pos < p->len) {
+            while(out_pos < buf->len) {
                 avail = buf->len - out_pos;
 
                 len = fd_write(ioh->fd, (&buf->data) + out_pos, avail);
@@ -230,9 +234,9 @@ static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *p)
         }
         case HANDLER_TYPE_UDP:
         {
-            pack_buf_t *buf = p->packet.buf;
+            pack_buf_t *buf = pkt->packet.buf;
             len = sendto(ioh->fd, &buf->data, buf->len, 0, 
-                    &p->addr, sizeof(struct sockaddr));
+                    &pkt->addr, sizeof(struct sockaddr));
             if(len < 0)
                 goto fail;
             break;
@@ -253,8 +257,9 @@ fail:
 
 static int iohandler_write(iohandler_t *ioh) 
 {
-    struct iopacket *pack;
     int ret;
+    struct iopacket *pack;
+    ioasync_t *aio = ioh->owner;
 
     if(queue_count(ioh->q_out) == 0)
         return 0;
@@ -264,11 +269,11 @@ static int iohandler_write(iohandler_t *ioh)
         return 0;
 
     if(queue_count(ioh->q_out) == 0)
-        poller_event_disable(ioh->owner->poller, ioh->fd, EPOLLOUT);
+        poller_event_disable(&aio->poller, ioh->fd, EPOLLOUT);
 
     ret = iohandler_write_packet(ioh, pack);
-    /*XXX*/
-    ioasync_pkt_free(p);
+
+    iohandler_pack_free(ioh, pack, 1);
 
     return ret;
 }
@@ -289,7 +294,7 @@ static void iohandler_close(iohandler_t *ioh)
     queue_release(ioh->q_out);
 
     if(ioh->fd > 0) {
-        poller_event_del(aio->poller, ioh->fd);
+        poller_event_del(&aio->poller, ioh->fd);
     }
 
     free(ioh);
@@ -298,6 +303,8 @@ static void iohandler_close(iohandler_t *ioh)
 void iohandler_shutdown(iohandler_t *ioh)
 {
     int q_empty;
+    ioasync_t *aio = ioh->owner;
+
     ioh->h_ops.close = NULL;
 
     q_empty = !!queue_count(ioh->q_out);
@@ -337,7 +344,7 @@ static void iohandler_event(void *data, int events)
 
     if(events & (EV_HUP|EV_ERROR)) {
         /* disconnection */
-        loge("%s: disconnect on fd %d", __func__, ioh->fd);
+        loge("iohandler disconnect on fd %d", ioh->fd);
         iohandler_close(ioh);
         return;
     }
@@ -356,11 +363,13 @@ static iohandler_t *ioasync_create_context(ioasync_t *aio, int fd, int type)
     ioh->flags = 0;
     ioh->closing = 0;
 
+    /*XXX*/
     ioh->q_in = queue_init(0);
     ioh->q_out = queue_init(0);
     ioh->owner = aio;
-    pthread_mutex_init(&ioh->lock);
+    pthread_mutex_init(&ioh->lock, NULL);
 
+    /*Add to active list*/
     pthread_mutex_lock(&aio->lock);
     list_add(&ioh->node, &aio->active_list);
     pthread_mutex_unlock(&aio->lock);
@@ -371,32 +380,32 @@ static iohandler_t *ioasync_create_context(ioasync_t *aio, int fd, int type)
 }
 
 
-static void normal_post_func(void* priv, struct iopacket *pkt)
+static void iohandler_normal_post(void* priv, struct iopacket *pkt)
 {
     iohandler_t *ioh = (iohandler_t *)priv;
     pack_buf_t *buf = pkt->packet.buf;
 
-    if(!buf)
-        goto out;
+    if(!buf) {
+        iohandler_pack_free(ioh, pkt, 0);
+        return;
+    }
 
     if(ioh->h_ops.handle)
         ioh->h_ops.handle(ioh->priv_data, buf->data, buf->len);
 
-    iohandler_pack_buf_free(buf);
-out:
-    iohandler_pack_free(ioh, pkt);
+    iohandler_pack_free(ioh, pkt, 1);
 }
 
 iohandler_t *iohandler_create(ioasync_t *aio, int fd,
-        handle_func hand_fn, close_func close_fn, void *priv)
+        void (*handle)(void *, uint8_t *, int), void (*close)(void *), void *priv)
 {
     iohandler_t *ioh;
 
     ioh = ioasync_create_context(aio, fd, HANDLER_TYPE_NORMAL);
 
-    ioh->h_ops.post = normal_post_func;
-    ioh->h_ops.handle = hand_fn;
-    ioh->h_ops.close = close_fn;
+    ioh->h_ops.post = iohandler_normal_post;
+    ioh->h_ops.handle = handle;
+    ioh->h_ops.close = close;
 
     ioh->priv_data = priv;
 
@@ -404,12 +413,15 @@ iohandler_t *iohandler_create(ioasync_t *aio, int fd,
 }
 
 
-static void accept_post_func(void* priv, struct iopacket *pkt)
+static void iohandler_accept_post(void* priv, struct iopacket *pkt)
 {
     iohandler_t *ioh = (iohandler_t *)priv;
     pack_buf_t *buf = pkt->packet.buf;
-    if(!buf)
-        goto out;
+
+    if(!buf) {
+        iohandler_pack_free(ioh, pkt, 0);
+        return;
+    }
 
     if(ioh->h_ops.accept) {
         int channel;
@@ -417,21 +429,19 @@ static void accept_post_func(void* priv, struct iopacket *pkt)
         ioh->h_ops.accept(ioh->priv_data, channel);
     }
 
-    iohandler_pack_buf_free(buf);
-out:
-    iohandler_pack_free(ioh, pkt);
+    iohandler_pack_free(ioh, pkt, 1);
 }
 
 iohandler_t *iohandler_accept_create(ioasync_t *aio, int fd,
-        accept_func accept_fn, close_func close_fn, void *priv)
+        void (*accept)(void *, int), void (*close)(void *), void *priv)
 {
     iohandler_t *ioh;
 
     ioh = ioasync_create_context(aio, fd, HANDLER_TYPE_TCP_ACCEPT);
 
-    ioh->h_ops.post = accept_post_func;
-    ioh->h_ops.accept = accept_fn;
-    ioh->h_ops.close = close_fn;
+    ioh->h_ops.post = iohandler_accept_post;
+    ioh->h_ops.accept = accept;
+    ioh->h_ops.close = close;
 
     ioh->priv_data = priv;
 
@@ -440,32 +450,32 @@ iohandler_t *iohandler_accept_create(ioasync_t *aio, int fd,
     return ioh;
 }
 
-static void udp_post_func(void* priv, struct iopacket *pkt)
+static void iohandler_udp_post(void* priv, struct iopacket *pkt)
 {
     iohandler_t *ioh = (iohandler_t *)priv;
     pack_buf_t *buf = pkt->packet.buf;
 
-    if(!buf)
-        goto out;
-
+    if(!buf) {
+        iohandler_pack_free(ioh, pkt, 0);
+        return;
+    }
     if(ioh->h_ops.handlefrom)
         ioh->h_ops.handlefrom(ioh->priv_data, buf->data, buf->len, &pkt->addr);
 
-    iohandler_pack_buf_free(buf);
-out:
-    iohandler_pack_free(ioh, pkt);
+    iohandler_pack_free(ioh, pkt, 1);
 }
 
 iohandler_t *iohandler_udp_create(ioasync_t *aio, int fd,
-        handlefrom_func hand_fn, close_func close_fn, void *priv)
+        void (*handlefrom)(void *, uint8_t *, int, void *),
+        void (*close)(void *), void *priv)
 {
     iohandler_t *ioh;
 
     ioh = ioasync_create_context(aio, fd, HANDLER_TYPE_UDP);
 
-    ioh->h_ops.post = udp_post_func;
-    ioh->h_ops.handlefrom = hand_fn;
-    ioh->h_ops.close = close_fn;
+    ioh->h_ops.post = iohandler_udp_post;
+    ioh->h_ops.handlefrom = handlefrom;
+    ioh->h_ops.close = close;
 
     ioh->priv_data = priv;
 
@@ -483,11 +493,15 @@ ioasync_t *ioasync_init(void)
 
     poller_init(&aio->poller);
 
-    aio->initialized = 1;
+    aio->pkt_pool = mempool_create(sizeof(struct iopacket), 128, 0);
+    aio->buf_pool = create_pack_buf_pool(PACKET_MAX_PAYLOAD, 128);
 
     INIT_LIST_HEAD(&aio->active_list);
     INIT_LIST_HEAD(&aio->closing_list);
 
+    pthread_mutex_init(&aio->lock, NULL);
+
+    aio->initialized = 1;
     return aio;
 }
 
@@ -496,9 +510,16 @@ void ioasync_loop(ioasync_t *aio)
     poller_loop(&aio->poller);
 }
 
-void ioasync_done(ioasync_t *aio)
+void ioasync_release(ioasync_t *aio)
 {
+    aio->initialized = 0;
+
     poller_done(&aio->poller);
+
+    free_pack_buf_pool(aio->buf_pool);
+    mempool_release(aio->pkt_pool);
+
+    free(aio);
 }
 
 
