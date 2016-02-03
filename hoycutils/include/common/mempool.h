@@ -5,21 +5,11 @@
 #include <pthread.h>
 #include <common/list.h>
 
-typedef struct mempool_s {
-	struct list_head free_list;
-	struct list_head dynamic_free_list;
-	pthread_mutex_t lock;
-	uint8_t *buf;
-
-	int bsize; /* block size */
-	int init_count; /* initiailized count for blocks ever alloced */
-	int count; /* total count for blocks ever alloced */
-	int used; 	/* used block count */
-	int dynamic_used; 	/* used block count */
-	int limited; /* is resource limited to initial count? */
-} mempool_t;
+typedef struct mempool mempool_t;
 
 mempool_t *mempool_create(int block_size, int init_count, int limited);
+void mempool_release(mempool_t *pool);
+
 void *mempool_alloc(mempool_t *pool);
 void mempool_free(mempool_t *pool, void *buf);
 

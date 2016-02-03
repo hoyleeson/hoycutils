@@ -6,6 +6,10 @@
 #include <string.h>
 #include <stddef.h>
 #include <errno.h>
+#include <ctype.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <common/list.h>
 #include <common/utils.h>
@@ -83,8 +87,8 @@ static void parse_line_import(struct parse_state *state, int nargs, char **args)
 
 #include "keywords.h"
 
-#define KEYWORD(symbol, flags, nargs, func) \
-    [ K_##symbol ] = {K_##symbol, #symbol, func, nargs + 1, flags, },
+#define KEYWORD(symbol, flags, nargs, fn) \
+    [ K_##symbol ] = {K_##symbol, #symbol, .func = fn, nargs + 1, flags },
 
 struct {
 	int key;
@@ -223,7 +227,6 @@ static void parse_line_command(struct parse_state* state, int nargs, char **args
 {
     struct command *cmd;
     struct configs_module *configs = state->context;
-    int (*func)(int nargs, char **args);
     int kw, n;
 
     if (nargs == 0) {
@@ -266,6 +269,8 @@ static void parse_line_import(struct parse_state *state, int nargs, char **args)
     list_add_tail(&import->node, imports_list);
     logi("found import '%s', adding to import list\n", import->filename);
 }
+
+static int init_parse_config_file(struct configs_module *configs, const char *fname);
 
 static void parse_configs(struct configs_module *configs, const char *fn, char *s)
 {
@@ -324,8 +329,7 @@ parser_done:
 	}
 }
 
-
-int init_parse_config_file(struct configs_module *configs, const char *fname)
+static int init_parse_config_file(struct configs_module *configs, const char *fname)
 {
     char *data;
 
@@ -337,7 +341,8 @@ int init_parse_config_file(struct configs_module *configs, const char *fname)
     return 0;
 }
 
-void deamon_start(struct deamon *dm) {
+
+static void deamon_start(struct deamon *dm) {
     struct stat s;
     pid_t pid;
 

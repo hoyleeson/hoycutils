@@ -13,7 +13,7 @@
 
 struct timer_base {
 	int clockid;
-	unsigned long event;
+	iohandler_t *ioh;
 	struct rb_root timer_tree;
 
 	pthread_mutex_t lock;
@@ -133,10 +133,10 @@ static inline void detach_timer(struct timer_list *timer)
 static int internal_add_timer(struct timer_list* timer)
 {
 	struct timer_base* base = timer->base;
-	int64_t expires = timer->expires;
+	uint64_t expires = timer->expires;
 	uint64_t now = curr_time_ms();
 
-	if(time_before(now, timer->expires))
+	if(time_before(now, expires))
 		return -EINVAL;
 
 	timer_insert_tree(timer);
@@ -223,6 +223,17 @@ int del_timer(struct timer_list *timer)
 	return ret;
 }
 
+#define trace_timer_expire_entry(timer)
+#define trace_timer_expire_exit(timer)
+
+static void call_timer_fn(struct timer_list *timer, 
+        void (*fn)(unsigned long), unsigned long data)
+{
+	trace_timer_expire_entry(timer);
+    fn(data);
+	trace_timer_expire_exit(timer);
+}
+
 static void run_timers(struct timer_base* base)
 {
 	struct timer_list *timer, *tmp;
@@ -284,7 +295,7 @@ static void timer_handler(struct timer_base* base, uint8_t *data, int len)
 
 static void timer_close(struct timer_base* base)
 {
-	base->event = 0;
+	base->ioh = NULL;
 }
 
 
@@ -292,12 +303,14 @@ int init_timers(void)
 {
 	struct timer_base* base;
 	base = &_timers;
+    ioasync_t *aio;
 
 	base->clockid = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
 
 	pthread_mutex_init(&base->lock, NULL);
 
-	base->event = iohandler_create(base->clockid, 
+    aio = get_global_ioasync();
+	base->ioh = iohandler_create(aio, base->clockid, 
 			(handle_func)timer_handler, (close_func)timer_close, base);	
 	return 0;
 }

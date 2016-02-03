@@ -112,7 +112,6 @@ int notifier_chain_cond_register(struct notifier_head *nh, struct notifier_block
 
 int notifier_chain_unregister(struct notifier_head *nh, struct notifier_block *n)
 {
-	unsigned long flags;
 	int ret;
 
 	pthread_rwlock_wrlock(&nh->lock);

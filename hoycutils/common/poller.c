@@ -1,13 +1,123 @@
 #include <stdint.h>
+#include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <pthread.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
+#include <common/sizes.h>
 #include <common/poller.h>
+#include <common/utils.h>
+#include <common/log.h>
+
+enum loop_ev_opt {
+    EV_POLLER_ADD,
+    EV_POLLER_DEL,
+    EV_POLLER_ENABLE,
+    EV_POLLER_DISABLE,
+    EV_POLLER_SIGNAL,
+};
+
+typedef struct {
+    int opt;
+    int fd;
+
+    union {
+        struct {
+            void* ev_user;
+            event_func ev_func;
+        } ev; /* used for looper add */
+        int events; 		/* used for looper enable / disable */
+    };
+} poller_ctl_t;
+
+
+static inline void poller_ctl_submit(struct poller* l, void *data, int len)
+{
+    int ret;
+
+    pthread_mutex_lock(&l->lock);
+    ret = fd_write(l->ctl_socks[0], data, len);
+    if(ret < 0)
+        loge("poller ctl command submit failed(%d).\n", ret);
+    pthread_mutex_unlock(&l->lock);
+}
+
+/* register a file descriptor and its event handler.
+ * no event mask will be enabled
+ */
+void poller_event_add(struct poller* l, int fd, event_func func, void* user)
+{
+    poller_ctl_t ctl;
+
+    ctl.opt = EV_POLLER_ADD;
+    ctl.fd = fd;
+
+    ctl.ev.ev_user = user;
+    ctl.ev.ev_func = func;
+
+    poller_ctl_submit(l, &ctl, sizeof(ctl));
+}
+
+/*
+ * unregister a file descriptor and its event handler
+ */
+void poller_event_del(struct poller* l, int fd)
+{
+    poller_ctl_t ctl;
+
+    ctl.opt = EV_POLLER_DEL;
+    ctl.fd = fd;
+
+    poller_ctl_submit(l, &ctl, sizeof(ctl));
+}
+
+/* enable monitoring of certain events for a file
+ * descriptor. This adds 'events' to the current
+ * event mask
+ */
+void poller_event_enable(struct poller* l, int  fd, int  events)
+{
+    poller_ctl_t ctl;
+
+    ctl.opt = EV_POLLER_ENABLE;
+    ctl.fd = fd;
+    ctl.events = events;
+
+    poller_ctl_submit(l, &ctl, sizeof(ctl));
+}
+
+/* disable monitoring of certain events for a file
+ * descriptor. This ignores events that are not
+ * currently enabled.
+ */
+void poller_event_disable(struct poller* l, int  fd, int  events)
+{
+    poller_ctl_t ctl;
+
+    ctl.opt = EV_POLLER_DISABLE;
+    ctl.fd = fd;
+    ctl.events = events;
+
+    poller_ctl_submit(l, &ctl, sizeof(ctl));
+}
+
+/* 
+ * 
+ */
+void poller_event_signal(struct poller* l)
+{
+    poller_ctl_t ctl;
+
+    ctl.opt = EV_POLLER_SIGNAL;
+    poller_ctl_submit(l, &ctl, sizeof(ctl));
+}
 
 
 /* return the struct event_hook corresponding to a given
@@ -39,7 +149,7 @@ static void poller_grow(struct poller*  l)
     /* now change the handles to all events */
     for (n = 0; n < l->num_fds; n++) {
         struct epoll_event ev;
-        struct event_hook*          hook = l->hooks + n;
+        struct event_hook* hook = l->hooks + n;
 
         ev.events   = hook->wanted;
         ev.data.ptr = hook;
@@ -50,7 +160,7 @@ static void poller_grow(struct poller*  l)
 /* register a file descriptor and its event handler.
  * no event mask will be enabled
  */
-void poller_add(struct poller* l, int fd, event_func  func, void*  data)
+static void poller_add(struct poller* l, int fd, event_func  func, void*  data)
 {
     struct epoll_event  ev;
     struct event_hook*           hook;
@@ -78,7 +188,7 @@ void poller_add(struct poller* l, int fd, event_func  func, void*  data)
 
 /* unregister a file descriptor and its event handler
  */
-void poller_del(struct poller*  l, int  fd)
+static void poller_del(struct poller*  l, int  fd)
 {
     struct event_hook*  hook = poller_find(l, fd);
 
@@ -96,7 +206,7 @@ void poller_del(struct poller*  l, int  fd)
  * descriptor. This adds 'events' to the current
  * event mask
  */
-void poller_enable(struct poller*  l, int  fd, int  events)
+static void poller_enable(struct poller*  l, int  fd, int  events)
 {
     struct event_hook*  hook = poller_find(l, fd);
 
@@ -120,7 +230,7 @@ void poller_enable(struct poller*  l, int  fd, int  events)
  * descriptor. This ignores events that are not
  * currently enabled.
  */
-void poller_disable(struct poller*  l, int  fd, int  events)
+static void poller_disable(struct poller*  l, int  fd, int  events)
 {
     struct event_hook*  hook = poller_find(l, fd);
 
@@ -140,8 +250,42 @@ void poller_disable(struct poller*  l, int  fd, int  events)
     }
 }
 
+
+static void poller_ctl_event(struct poller *l, int events)
+{
+    poller_ctl_t ctl;
+    int len;
+
+    if(!(events & EPOLLIN)) {
+        return;
+    }
+
+    len = fd_read(l->ctl_socks[1], &ctl, sizeof(poller_ctl_t));
+    if(len < sizeof(poller_ctl_t))
+        return;
+
+    switch(ctl.opt) {
+        case EV_POLLER_ADD:
+            poller_add(l, ctl.fd, ctl.ev.ev_func, ctl.ev.ev_user);
+            break;
+        case EV_POLLER_DEL:
+            poller_del(l, ctl.fd);
+            break;
+        case EV_POLLER_ENABLE:
+            poller_enable(l, ctl.fd, ctl.events);
+            break;
+        case EV_POLLER_DISABLE:
+            poller_disable(l, ctl.fd, ctl.events);
+            break;
+        default:
+            break;
+    }
+}
+
+
 static int poller_exec(struct poller* l) {
 	int  n, count;
+    struct event_hook* hook;
 
 	do {
 		count = epoll_wait(l->epoll_fd, l->events, l->num_fds, -1);
@@ -153,32 +297,33 @@ static int poller_exec(struct poller* l) {
 	}
 
 	if (count == 0) {
-		loge("%s: huh ? epoll returned count=0", __func__);
+		loge("poller huh ? epoll returned count=0");
 		return 0;
 	}
 
 	/* mark all pending hooks */
 	for (n = 0; n < count; n++) {
-		struct event_hook*  hook = l->events[n].data.ptr;
+		hook = l->events[n].data.ptr;
 		hook->state  = HOOK_PENDING;
 		hook->events = l->events[n].events;
 	}
 
+#define FIRST_DYNAMIC_SLOT     (1)
 	/* execute hook callbacks. this may change the 'hooks'
 	 * and 'events' array, as well as l->num_fds, so be careful */
-	for (n = 0; n < l->num_fds; n++) {
-		struct event_hook*  hook = l->hooks + n;
+	for (n = FIRST_DYNAMIC_SLOT; n < l->num_fds; n++) {
+		hook = l->hooks + n;
 		if (hook->state & HOOK_PENDING) {
 			hook->state &= ~HOOK_PENDING;
 			hook->func(hook->data, hook->events);
 		}
-	}
+    }
 
 	/* now remove all the hooks that were closed by
 	 * the callbacks */
-	for (n = 0; n < l->num_fds;) {
+	for (n = FIRST_DYNAMIC_SLOT; n < l->num_fds;) {
 		struct epoll_event ev;
-		struct event_hook*  hook = l->hooks + n;
+		hook = l->hooks + n;
 
 		if (!(hook->state & HOOK_CLOSING)) {
 			n++;
@@ -191,35 +336,74 @@ static int poller_exec(struct poller* l) {
 		ev.data.ptr = hook;
 		epoll_ctl(l->epoll_fd, EPOLL_CTL_MOD, hook->fd, &ev);
 	}
+
+    /* slot 0: manage hook. */
+    hook = l->hooks;
+    if (hook->state & HOOK_PENDING) {
+        hook->state &= ~HOOK_PENDING;
+        hook->func(hook->data, hook->events);
+    }
+
 	return 0;
 }
 
 /* wait until an event occurs on one of the registered file
  * descriptors. Only returns in case of error !!
  */
-void poller_loop(struct poller*  l)
+void poller_loop(struct poller* l)
 {
 	int ret;
     for (;;) {
+        if(!l->running)
+            break;
+
 		ret = poller_exec(l);
 		if(ret)
 			break;
     }
 }
 
+void poller_done(struct poller* l)
+{
+    l->running = 0;
+    poller_event_signal(l);
+}
+
 
 /* initialize a poller object */
-struct poller *poller_create(void) 
+int poller_init(struct poller *l) 
 {
-	struct poller* l;
+	int ret;
+    int size = SZ_32K;
 
-	xnew(l);
-
-    l->epoll_fd = epoll_create(4);
+    l->epoll_fd = epoll_create(1);
     l->num_fds  = 0;
     l->max_fds  = 0;
     l->events   = NULL;
     l->hooks    = NULL;
+
+    pthread_mutex_init(&l->lock, NULL);
+
+    ret = socketpair(AF_UNIX, SOCK_DGRAM, 0, l->ctl_socks);
+    if (ret < 0) {
+        loge("Error in socketpair(). errno:%d", errno);
+        return -EINVAL;
+    }
+
+    logd("create poller ctl event pipe, sockpair:%d:%d", l->ctl_socks[0], l->ctl_socks[1]);
+
+    setsockopt(l->ctl_socks[0], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+    setsockopt(l->ctl_socks[0], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+    setsockopt(l->ctl_socks[1], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+    setsockopt(l->ctl_socks[1], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+    fcntl(l->ctl_socks[0], F_SETFL, O_NONBLOCK);
+    fcntl(l->ctl_socks[1], F_SETFL, O_NONBLOCK);
+
+    poller_event_add(l, l->ctl_socks[1], (event_func)poller_ctl_event, l);
+    poller_event_enable(l, l->ctl_socks[1], EPOLLIN);
+    l->running = 1;
+
+    return 0;
 }
 
 /* finalize a poller object */
@@ -232,7 +416,20 @@ void poller_release(struct poller*  l)
 
     close(l->epoll_fd);
     l->epoll_fd  = -1;
+}
 
+struct poller *poller_create(void) 
+{
+	struct poller* l;
+
+	xnew(l);
+    return l;
+}
+
+/* finalize a poller object */
+void poller_free(struct poller*  l)
+{
 	xfree(l);
 }
+
 
