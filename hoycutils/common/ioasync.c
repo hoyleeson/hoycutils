@@ -116,7 +116,7 @@ static void iohandler_pack_buf_free(pack_buf_t *buf)
 void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *buf)
 {
     struct iopacket *pack;
-    
+
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = buf;
     queue_in(ioh->q_in, (struct packet *)pack);
@@ -125,7 +125,7 @@ void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *buf)
 void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *buf, struct sockaddr *to)
 {
     struct iopacket *pack;
-    
+
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = buf;
     pack->addr = *to;
@@ -157,14 +157,14 @@ void iohandler_sendto(iohandler_t *ioh, const uint8_t *data, int len, struct soc
 
 static void iohandler_packet_handle(struct work_struct *work)
 {
-    
+
 }
 
 static void iohandler_pack_queue(iohandler_t *ioh, struct iopacket *pack)
 {
     ioasync_t *aio = ioh->owner;
 
- //   queue_work();
+    //   queue_work();
 }
 
 static int iohandler_read(iohandler_t* ioh)
@@ -180,21 +180,21 @@ static int iohandler_read(iohandler_t* ioh)
             buf->len = fd_read(ioh->fd, buf->data, PACKET_MAX_PAYLOAD);
             break;
         case HANDLER_TYPE_UDP:
-        {
-            socklen_t addrlen = sizeof(struct sockaddr_in);
-            bzero(&pack->addr, sizeof(pack->addr));
-            buf->len = recvfrom(ioh->fd, &buf->data, PACKET_MAX_PAYLOAD,
-                    0, &pack->addr, &addrlen);
-            break;
-        }
+            {
+                socklen_t addrlen = sizeof(struct sockaddr_in);
+                bzero(&pack->addr, sizeof(pack->addr));
+                buf->len = recvfrom(ioh->fd, &buf->data, PACKET_MAX_PAYLOAD,
+                        0, &pack->addr, &addrlen);
+                break;
+            }
         case HANDLER_TYPE_TCP_ACCEPT:
-        {
-            int channel;
-            channel = fd_accept(ioh->fd);
-            memcpy(buf->data, &channel, sizeof(int));
-            buf->len = sizeof(int);
-            break;
-        }
+            {
+                int channel;
+                channel = fd_accept(ioh->fd);
+                memcpy(buf->data, &channel, sizeof(int));
+                buf->len = sizeof(int);
+                break;
+            }
         default:
             buf->len = -1;
             break;
@@ -217,30 +217,30 @@ static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *pkt)
 
     switch(ioh->type) {
         case HANDLER_TYPE_NORMAL:
-        {
-            int out_pos = 0;
-            int avail = 0;
-            pack_buf_t *buf = pkt->packet.buf;
+            {
+                int out_pos = 0;
+                int avail = 0;
+                pack_buf_t *buf = pkt->packet.buf;
 
-            while(out_pos < buf->len) {
-                avail = buf->len - out_pos;
+                while(out_pos < buf->len) {
+                    avail = buf->len - out_pos;
 
-                len = fd_write(ioh->fd, (&buf->data) + out_pos, avail);
-                if(len < 0) 
-                    goto fail;
-                out_pos += len;
+                    len = fd_write(ioh->fd, (&buf->data) + out_pos, avail);
+                    if(len < 0) 
+                        goto fail;
+                    out_pos += len;
+                }
+                break;
             }
-            break;
-        }
         case HANDLER_TYPE_UDP:
-        {
-            pack_buf_t *buf = pkt->packet.buf;
-            len = sendto(ioh->fd, &buf->data, buf->len, 0, 
-                    &pkt->addr, sizeof(struct sockaddr));
-            if(len < 0)
-                goto fail;
-            break;
-        }
+            {
+                pack_buf_t *buf = pkt->packet.buf;
+                len = sendto(ioh->fd, &buf->data, buf->len, 0, 
+                        &pkt->addr, sizeof(struct sockaddr));
+                if(len < 0)
+                    goto fail;
+                break;
+            }
         case HANDLER_TYPE_TCP_ACCEPT:
             BUG();
         default:

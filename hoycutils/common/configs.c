@@ -25,8 +25,8 @@
 struct config {
     struct list_head node;
 
-	const char *key;
-	const char *value;
+    const char *key;
+    const char *value;
 };
 
 #define DEAMON_DISABLED    0x01  /* do not autostart with class */
@@ -35,7 +35,7 @@ struct config {
 #define DEAMON_RESTARTING  0x08  /* waiting to restart */
 #define DEAMON_RESTART     0x10 /* Use to safely restart (stop, wait, start) a service */
 #define DEAMON_RESET       0x40  /* Use when stopping a process, but not disabling
-                                 so it can be restarted with its class */
+                                    so it can be restarted with its class */
 
 struct deamon {
     struct list_head node;
@@ -54,8 +54,8 @@ struct deamon {
 
 struct command {
     struct list_head node;
-	
-	const char *name;
+
+    const char *name;
     int (*func)(int nargs, char **args);
     int nargs;
     char *args[1];
@@ -73,7 +73,7 @@ struct configs_module {
     struct list_head deamons_list;
     struct list_head commands_list;
 
-	void *data;
+    void *data;
 };
 
 struct configs_module _configs;
@@ -91,12 +91,12 @@ static void parse_line_import(struct parse_state *state, int nargs, char **args)
     [ K_##symbol ] = {K_##symbol, #symbol, .func = fn, nargs + 1, flags },
 
 struct {
-	int key;
+    int key;
     const char *name;
-	union {
-		int (*func)(int nargs, char **args);
-		void (*parse)(struct parse_state* state, int nargs, char **args);
-	};
+    union {
+        int (*func)(int nargs, char **args);
+        void (*parse)(struct parse_state* state, int nargs, char **args);
+    };
     unsigned char nargs;
     unsigned char flags;
 } keyword_info[KEYWORD_COUNT] = {
@@ -121,12 +121,12 @@ struct {
 
 int lookup_keyword(const char *s)
 {
-	int i;
-	for(i=0; i<KEYWORD_COUNT; i++) {
-		if(!strcmp(s, keyword_info[i].name)) {
-			return keyword_info[i].key;
-		}
-	}
+    int i;
+    for(i=0; i<KEYWORD_COUNT; i++) {
+        if(!strcmp(s, keyword_info[i].name)) {
+            return keyword_info[i].key;
+        }
+    }
 
     return K_UNKNOWN;
 }
@@ -146,25 +146,25 @@ static int valid_name(const char *name)
 }
 
 static struct config *config_find_by_key(const char *key) {
-	struct config *conf;
-	struct configs_module *configs = &_configs;
+    struct config *conf;
+    struct configs_module *configs = &_configs;
 
-	list_for_each_entry(conf, &configs->configs_list, node) {
-		if(!strcmp(conf->key, key))
-			return conf;
-	}
-	return NULL;
+    list_for_each_entry(conf, &configs->configs_list, node) {
+        if(!strcmp(conf->key, key))
+            return conf;
+    }
+    return NULL;
 }
 
 static struct deamon *deamon_find_by_name(const char *name) {
-	struct deamon *dm;
-	struct configs_module *configs = &_configs;
+    struct deamon *dm;
+    struct configs_module *configs = &_configs;
 
-	list_for_each_entry(dm, &configs->deamons_list, node) {
-		if(!strcmp(dm->name, name))
-			return dm;
-	}
-	return NULL;
+    list_for_each_entry(dm, &configs->deamons_list, node) {
+        if(!strcmp(dm->name, name))
+            return dm;
+    }
+    return NULL;
 }
 
 
@@ -174,17 +174,17 @@ static void parse_line_no_op(struct parse_state *state, int nargs, char **args)
 
 static void parse_line_config(struct parse_state* state, int nargs, char **args)
 {
-	struct config *conf;
+    struct config *conf;
     struct configs_module *configs = state->context;
 
     if (nargs < 2) {
         parse_error(state, "config must have a name and value\n");
         return;
     }
- 
+
     conf = malloc(sizeof(*conf));
-	conf->key = args[0];
-	conf->value = args[1];
+    conf->key = args[0];
+    conf->value = args[1];
 
     list_add_tail(&conf->node, &configs->configs_list);
 }
@@ -192,7 +192,7 @@ static void parse_line_config(struct parse_state* state, int nargs, char **args)
 
 static void parse_line_deamon(struct parse_state* state, int nargs, char **args)
 {
-	struct deamon *dm;
+    struct deamon *dm;
     struct configs_module *configs = state->context;
 
     if (nargs < 2) {
@@ -235,14 +235,14 @@ static void parse_line_command(struct parse_state* state, int nargs, char **args
 
     kw = lookup_keyword(args[0]);
     if (!kw_is(kw, COMMAND)) {
-		parse_error(state, "invalid command '%s'\n", args[0]);
+        parse_error(state, "invalid command '%s'\n", args[0]);
         return;
     }
 
     n = kw_nargs(kw);
     if (nargs < n) {
         parse_error(state, "%s requires %d %s\n", args[0], n - 1,
-            n > 2 ? "arguments" : "argument");
+                n > 2 ? "arguments" : "argument");
         return;
     }
 
@@ -274,7 +274,7 @@ static int init_parse_config_file(struct configs_module *configs, const char *fn
 
 static void parse_configs(struct configs_module *configs, const char *fn, char *s)
 {
-	struct import *import, *tmp;
+    struct import *import, *tmp;
     struct parse_state state;
     LIST_HEAD(import_list);
     char *args[INIT_PARSER_MAXARGS];
@@ -292,41 +292,41 @@ static void parse_configs(struct configs_module *configs, const char *fn, char *
 
     for (;;) {
         switch (next_token(&state)) {
-        case T_EOF:
-          //  state.parse_line(&state, 0, 0);
-            goto parser_done;
-        case T_NEWLINE:
-            state.line++;
-            if (nargs) {
-                int kw = lookup_keyword(args[0]);
-                if (kw_is(kw, SECTION)) {
-                    //state.parse_line(&state, 0, 0);
-					state.parse_line = kw_parse(kw);
-                } else {
-                    state.parse_line(&state, nargs, args);
+            case T_EOF:
+                //  state.parse_line(&state, 0, 0);
+                goto parser_done;
+            case T_NEWLINE:
+                state.line++;
+                if (nargs) {
+                    int kw = lookup_keyword(args[0]);
+                    if (kw_is(kw, SECTION)) {
+                        //state.parse_line(&state, 0, 0);
+                        state.parse_line = kw_parse(kw);
+                    } else {
+                        state.parse_line(&state, nargs, args);
+                    }
+                    nargs = 0;
                 }
-                nargs = 0;
-            }
-            break;
-        case T_TEXT:
-            if (nargs < INIT_PARSER_MAXARGS) {
-                args[nargs++] = state.text;
-            }
-            break;
+                break;
+            case T_TEXT:
+                if (nargs < INIT_PARSER_MAXARGS) {
+                    args[nargs++] = state.text;
+                }
+                break;
         }
     }
 
 parser_done:
-	list_for_each_entry_safe(import, tmp, &import_list, node) {
-		int ret;
+    list_for_each_entry_safe(import, tmp, &import_list, node) {
+        int ret;
 
-		logi("importing '%s'\n", import->filename);
-		ret = init_parse_config_file(configs, import->filename);
-		if (ret)
-			loge("could not import file '%s' from '%s'\n", import->filename, fn);
-		list_del(&import->node);
-		free(import);
-	}
+        logi("importing '%s'\n", import->filename);
+        ret = init_parse_config_file(configs, import->filename);
+        if (ret)
+            loge("could not import file '%s' from '%s'\n", import->filename, fn);
+        list_del(&import->node);
+        free(import);
+    }
 }
 
 static int init_parse_config_file(struct configs_module *configs, const char *fname)
@@ -335,7 +335,7 @@ static int init_parse_config_file(struct configs_module *configs, const char *fn
 
     data = read_file(fname, 0);
     if (!data)
-	   	return -1;
+        return -1;
 
     parse_configs(configs, fname, data);
     return 0;
@@ -346,21 +346,21 @@ static void deamon_start(struct deamon *dm) {
     struct stat s;
     pid_t pid;
 
-	/* starting a service removes it from the disabled or reset
-	 * state and immediately takes it out of the restarting
-	 * state if it was in there
-	 */
-	dm->flags &= (~(DEAMON_DISABLED|DEAMON_RESTARTING|DEAMON_RESET|DEAMON_RESTART));
-	dm->time_started = 0;
+    /* starting a service removes it from the disabled or reset
+     * state and immediately takes it out of the restarting
+     * state if it was in there
+     */
+    dm->flags &= (~(DEAMON_DISABLED|DEAMON_RESTARTING|DEAMON_RESET|DEAMON_RESTART));
+    dm->time_started = 0;
 
-	/* running processes require no additional work -- if
-	 * they're in the process of exiting, we've ensured
-	 * that they will immediately restart on exit, unless
-	 * they are ONESHOT
-	 */
-	if (dm->flags & DEAMON_RUNNING) {
-		return;
-	}
+    /* running processes require no additional work -- if
+     * they're in the process of exiting, we've ensured
+     * that they will immediately restart on exit, unless
+     * they are ONESHOT
+     */
+    if (dm->flags & DEAMON_RUNNING) {
+        return;
+    }
 
     if (stat(dm->args[0], &s) != 0) {
         loge("cannot find '%s', disabling '%s'\n", dm->args[0], dm->name);
@@ -371,100 +371,100 @@ static void deamon_start(struct deamon *dm) {
     pid = fork();
 
     if (pid == 0) {
-		char *environ[] = { NULL };
-		if(execve(dm->args[0], (char**) dm->args, (char**) environ) < 0) {
-			loge("cannot execve('%s'): %s\n", dm->args[0], strerror(errno));
-		}
+        char *environ[] = { NULL };
+        if(execve(dm->args[0], (char**) dm->args, (char**) environ) < 0) {
+            loge("cannot execve('%s'): %s\n", dm->args[0], strerror(errno));
+        }
 
         _exit(127);
-	} else if (pid < 0) {
+    } else if (pid < 0) {
         loge("failed to start '%s'\n", dm->name);
         dm->pid = 0;
         return;
     }
 
-	dm->time_started = gettime();
-	dm->pid = pid;
-	dm->flags |= DEAMON_RUNNING;
+    dm->time_started = gettime();
+    dm->pid = pid;
+    dm->flags |= DEAMON_RUNNING;
 }
 
 void exec_deamons(void) 
 {
-	struct deamon *dm;
-	struct configs_module *configs = &_configs;
+    struct deamon *dm;
+    struct configs_module *configs = &_configs;
 
-	list_for_each_entry(dm, &configs->deamons_list, node) {
-		deamon_start(dm);
-	}
+    list_for_each_entry(dm, &configs->deamons_list, node) {
+        deamon_start(dm);
+    }
 }
 
 void exec_commands(void) 
 {
-	struct command *cmd;
-	struct configs_module *configs = &_configs;
+    struct command *cmd;
+    struct configs_module *configs = &_configs;
 
-	list_for_each_entry(cmd, &configs->commands_list, node) {
-		if(cmd->func)
-			cmd->func(cmd->nargs, cmd->args);
-	}
+    list_for_each_entry(cmd, &configs->commands_list, node) {
+        if(cmd->func)
+            cmd->func(cmd->nargs, cmd->args);
+    }
 }
 
 static void dump(void);
 
 int init_configs(const char *fname)
 {
-	struct configs_module *configs = &_configs;
+    struct configs_module *configs = &_configs;
 
-	INIT_LIST_HEAD(&configs->configs_list);
-	INIT_LIST_HEAD(&configs->deamons_list);
-	INIT_LIST_HEAD(&configs->commands_list);
+    INIT_LIST_HEAD(&configs->configs_list);
+    INIT_LIST_HEAD(&configs->deamons_list);
+    INIT_LIST_HEAD(&configs->commands_list);
 
-	init_parse_config_file(configs, fname);
+    init_parse_config_file(configs, fname);
 
-	dump();
-	return 0;
+    dump();
+    return 0;
 }
 
 const char *config_val_find_by_key(const char *key) {
-	struct config *conf;
+    struct config *conf;
 
-	conf = config_find_by_key(key);
-	if(!conf)
-		return NULL;
-	return conf->value;
+    conf = config_find_by_key(key);
+    if(!conf)
+        return NULL;
+    return conf->value;
 }
 
 static void dump(void) 
 {
-	struct config *config;
-	struct deamon *deamon;
-	struct command *command;
+    struct config *config;
+    struct deamon *deamon;
+    struct command *command;
     struct configs_module *configs = &_configs;
 
-	printf("\n====================config============================\n");
-	list_for_each_entry(config, &configs->configs_list, node) {
-		printf("key:%s value:%s\n", config->key, config->value);
-	}
+    printf("\n====================config============================\n");
+    list_for_each_entry(config, &configs->configs_list, node) {
+        printf("key:%s value:%s\n", config->key, config->value);
+    }
 
-	printf("\n====================deamon============================\n");
-	list_for_each_entry(deamon, &configs->deamons_list, node) {
-		int i;
-		printf("name:%s args:", deamon->name);
-		for(i=0; i<deamon->nargs; i++) {
-			printf("%s ", deamon->args[i]);
-		}
-		printf("\n");
-	}
+    printf("\n====================deamon============================\n");
+    list_for_each_entry(deamon, &configs->deamons_list, node) {
+        int i;
+        printf("name:%s args:", deamon->name);
+        for(i=0; i<deamon->nargs; i++) {
+            printf("%s ", deamon->args[i]);
+        }
+        printf("\n");
+    }
 
-	printf("\n====================command===========================\n");
-	list_for_each_entry(command, &configs->commands_list, node) {
-		int i;
-		printf("name:%s args:", command->name);
-		for(i=0; i<command->nargs; i++) {
-			printf("%s ", command->args[i]);
-		}
-		printf("\n");
-	}
+    printf("\n====================command===========================\n");
+    list_for_each_entry(command, &configs->commands_list, node) {
+        int i;
+        printf("name:%s args:", command->name);
+        for(i=0; i<command->nargs; i++) {
+            printf("%s ", command->args[i]);
+        }
+        printf("\n");
+    }
 }
 
 

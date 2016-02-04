@@ -3,5 +3,5 @@
 
 int do_loglevel(int nargs, char **args)
 {
-	return 0;
+    return 0;
 }

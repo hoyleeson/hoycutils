@@ -187,7 +187,7 @@ static void poller_add(struct poller* l, int fd, event_func  func, void*  data)
 }
 
 /* unregister a file descriptor and its event handler
- */
+*/
 static void poller_del(struct poller*  l, int  fd)
 {
     struct event_hook*  hook = poller_find(l, fd);
@@ -284,58 +284,58 @@ static void poller_ctl_event(struct poller *l, int events)
 
 
 static int poller_exec(struct poller* l) {
-	int  n, count;
+    int  n, count;
     struct event_hook* hook;
 
-	do {
-		count = epoll_wait(l->epoll_fd, l->events, l->num_fds, -1);
-	} while (count < 0 && errno == EINTR);
+    do {
+        count = epoll_wait(l->epoll_fd, l->events, l->num_fds, -1);
+    } while (count < 0 && errno == EINTR);
 
-	if (count < 0) {
-		loge("%s: error: %s", __func__, strerror(errno));
-		return -EINVAL;
-	}
-
-	if (count == 0) {
-		loge("poller huh ? epoll returned count=0");
-		return 0;
-	}
-
-	/* mark all pending hooks */
-	for (n = 0; n < count; n++) {
-		hook = l->events[n].data.ptr;
-		hook->state  = HOOK_PENDING;
-		hook->events = l->events[n].events;
-	}
-
-#define FIRST_DYNAMIC_SLOT     (1)
-	/* execute hook callbacks. this may change the 'hooks'
-	 * and 'events' array, as well as l->num_fds, so be careful */
-	for (n = FIRST_DYNAMIC_SLOT; n < l->num_fds; n++) {
-		hook = l->hooks + n;
-		if (hook->state & HOOK_PENDING) {
-			hook->state &= ~HOOK_PENDING;
-			hook->func(hook->data, hook->events);
-		}
+    if (count < 0) {
+        loge("%s: error: %s", __func__, strerror(errno));
+        return -EINVAL;
     }
 
-	/* now remove all the hooks that were closed by
-	 * the callbacks */
-	for (n = FIRST_DYNAMIC_SLOT; n < l->num_fds;) {
-		struct epoll_event ev;
-		hook = l->hooks + n;
+    if (count == 0) {
+        loge("poller huh ? epoll returned count=0");
+        return 0;
+    }
 
-		if (!(hook->state & HOOK_CLOSING)) {
-			n++;
-			continue;
-		}
+    /* mark all pending hooks */
+    for (n = 0; n < count; n++) {
+        hook = l->events[n].data.ptr;
+        hook->state  = HOOK_PENDING;
+        hook->events = l->events[n].events;
+    }
 
-		hook[0]     = l->hooks[l->num_fds-1];
-		l->num_fds -= 1;
-		ev.events   = hook->wanted;
-		ev.data.ptr = hook;
-		epoll_ctl(l->epoll_fd, EPOLL_CTL_MOD, hook->fd, &ev);
-	}
+#define FIRST_DYNAMIC_SLOT     (1)
+    /* execute hook callbacks. this may change the 'hooks'
+     * and 'events' array, as well as l->num_fds, so be careful */
+    for (n = FIRST_DYNAMIC_SLOT; n < l->num_fds; n++) {
+        hook = l->hooks + n;
+        if (hook->state & HOOK_PENDING) {
+            hook->state &= ~HOOK_PENDING;
+            hook->func(hook->data, hook->events);
+        }
+    }
+
+    /* now remove all the hooks that were closed by
+     * the callbacks */
+    for (n = FIRST_DYNAMIC_SLOT; n < l->num_fds;) {
+        struct epoll_event ev;
+        hook = l->hooks + n;
+
+        if (!(hook->state & HOOK_CLOSING)) {
+            n++;
+            continue;
+        }
+
+        hook[0]     = l->hooks[l->num_fds-1];
+        l->num_fds -= 1;
+        ev.events   = hook->wanted;
+        ev.data.ptr = hook;
+        epoll_ctl(l->epoll_fd, EPOLL_CTL_MOD, hook->fd, &ev);
+    }
 
     /* slot 0: manage hook. */
     hook = l->hooks;
@@ -344,7 +344,7 @@ static int poller_exec(struct poller* l) {
         hook->func(hook->data, hook->events);
     }
 
-	return 0;
+    return 0;
 }
 
 /* wait until an event occurs on one of the registered file
@@ -352,14 +352,14 @@ static int poller_exec(struct poller* l) {
  */
 void poller_loop(struct poller* l)
 {
-	int ret;
+    int ret;
     for (;;) {
         if(!l->running)
             break;
 
-		ret = poller_exec(l);
-		if(ret)
-			break;
+        ret = poller_exec(l);
+        if(ret)
+            break;
     }
 }
 
@@ -373,7 +373,7 @@ void poller_done(struct poller* l)
 /* initialize a poller object */
 int poller_init(struct poller *l) 
 {
-	int ret;
+    int ret;
     int size = SZ_32K;
 
     l->epoll_fd = epoll_create(1);
@@ -420,16 +420,16 @@ void poller_release(struct poller*  l)
 
 struct poller *poller_create(void) 
 {
-	struct poller* l;
+    struct poller* l;
 
-	xnew(l);
+    xnew(l);
     return l;
 }
 
 /* finalize a poller object */
 void poller_free(struct poller*  l)
 {
-	xfree(l);
+    xfree(l);
 }
 
 

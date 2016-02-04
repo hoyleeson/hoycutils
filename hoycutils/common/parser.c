@@ -11,7 +11,7 @@ void parse_error(struct parse_state *state, const char *fmt, ...)
     va_list ap;
     char buf[128];
     int off;
-    
+
     snprintf(buf, 128, "%s: %d: ", state->filename, state->line);
     buf[127] = 0;
     off = strlen(buf);
@@ -36,30 +36,30 @@ int next_token(struct parse_state *state)
 
     for (;;) {
         switch (*x) {
-        case 0:
-            state->ptr = x;
-            return T_EOF;
-        case '\n':
-            x++;
-            state->ptr = x;
-            return T_NEWLINE;
-        case ' ':
-        case '\t':
-        case '\r':
-		case '=':
-            x++;
-            continue;
-        case '#':
-            while (*x && (*x != '\n')) x++;
-            if (*x == '\n') {
-                state->ptr = x+1;
-                return T_NEWLINE;
-            } else {
+            case 0:
                 state->ptr = x;
                 return T_EOF;
-            }
-        default:
-            goto text;
+            case '\n':
+                x++;
+                state->ptr = x;
+                return T_NEWLINE;
+            case ' ':
+            case '\t':
+            case '\r':
+            case '=':
+                x++;
+                continue;
+            case '#':
+                while (*x && (*x != '\n')) x++;
+                if (*x == '\n') {
+                    state->ptr = x+1;
+                    return T_NEWLINE;
+                } else {
+                    state->ptr = x;
+                    return T_EOF;
+                }
+            default:
+                goto text;
         }
     }
 
@@ -72,71 +72,71 @@ text:
 textresume:
     for (;;) {
         switch (*x) {
-        case 0:
-            goto textdone;
-        case ' ':
-        case '\t':
-        case '\r':
-		case '=':
-            x++;
-            goto textdone;
-        case '\n':
-            state->nexttoken = T_NEWLINE;
-            x++;
-            goto textdone;
-        case '"':
-            x++;
-            for (;;) {
-                switch (*x) {
-                case 0:
-                        /* unterminated quoted thing */
-                    state->ptr = x;
-                    return T_EOF;
-                case '"':
-                    x++;
-                    goto textresume;
-                default:
-                    *s++ = *x++;
-                }
-            }
-            break;
-        case '\\':
-            x++;
-            switch (*x) {
             case 0:
                 goto textdone;
-            case 'n':
-                *s++ = '\n';
-                break;
-            case 'r':
-                *s++ = '\r';
-                break;
-            case 't':
-                *s++ = '\t';
+            case ' ':
+            case '\t':
+            case '\r':
+            case '=':
+                x++;
+                goto textdone;
+            case '\n':
+                state->nexttoken = T_NEWLINE;
+                x++;
+                goto textdone;
+            case '"':
+                x++;
+                for (;;) {
+                    switch (*x) {
+                        case 0:
+                            /* unterminated quoted thing */
+                            state->ptr = x;
+                            return T_EOF;
+                        case '"':
+                            x++;
+                            goto textresume;
+                        default:
+                            *s++ = *x++;
+                    }
+                }
                 break;
             case '\\':
-                *s++ = '\\';
-                break;
-            case '\r':
-                    /* \ <cr> <lf> -> line continuation */
-                if (x[1] != '\n') {
-                    x++;
-                    continue;
-                }
-            case '\n':
-                    /* \ <lf> -> line continuation */
-                state->line++;
                 x++;
-                    /* eat any extra whitespace */
-                while((*x == ' ') || (*x == '\t')) x++;
+                switch (*x) {
+                    case 0:
+                        goto textdone;
+                    case 'n':
+                        *s++ = '\n';
+                        break;
+                    case 'r':
+                        *s++ = '\r';
+                        break;
+                    case 't':
+                        *s++ = '\t';
+                        break;
+                    case '\\':
+                        *s++ = '\\';
+                        break;
+                    case '\r':
+                        /* \ <cr> <lf> -> line continuation */
+                        if (x[1] != '\n') {
+                            x++;
+                            continue;
+                        }
+                    case '\n':
+                        /* \ <lf> -> line continuation */
+                        state->line++;
+                        x++;
+                        /* eat any extra whitespace */
+                        while((*x == ' ') || (*x == '\t')) x++;
+                        continue;
+                    default:
+                        /* unknown escape -- just copy */
+                        *s++ = *x++;
+                }
                 continue;
             default:
-                    /* unknown escape -- just copy */
                 *s++ = *x++;
-            }
-            continue;
-        default:
-            *s++ = *x++;
         }
     }
     return T_EOF;

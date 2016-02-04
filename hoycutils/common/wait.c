@@ -5,56 +5,56 @@
 
 void add_wait_queue(wait_queue_head_t *q, wait_queue_t *wait)
 {
-	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
+    wait->flags &= ~WQ_FLAG_EXCLUSIVE;
 
-	pthread_mutex_lock(&q->lock);
-	__add_wait_queue(q, wait);
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_lock(&q->lock);
+    __add_wait_queue(q, wait);
+    pthread_mutex_unlock(&q->lock);
 }
 
 void add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t *wait)
 {
-	wait->flags |= WQ_FLAG_EXCLUSIVE;
+    wait->flags |= WQ_FLAG_EXCLUSIVE;
 
-	pthread_mutex_lock(&q->lock);
-	__add_wait_queue_tail(q, wait);
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_lock(&q->lock);
+    __add_wait_queue_tail(q, wait);
+    pthread_mutex_unlock(&q->lock);
 }
 
 
 void remove_wait_queue(wait_queue_head_t *q, wait_queue_t *wait)
 {
-	pthread_mutex_lock(&q->lock);
-	__remove_wait_queue(q, wait);
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_lock(&q->lock);
+    __remove_wait_queue(q, wait);
+    pthread_mutex_unlock(&q->lock);
 }
 
 int autoremove_wake_function(wait_queue_t *wait, int sync)
 {
-	int ret = default_wake_function(wait, sync);
+    int ret = default_wake_function(wait, sync);
 
-	if (ret)
-		list_del_init(&wait->task_list);
-	return ret;
+    if (ret)
+        list_del_init(&wait->task_list);
+    return ret;
 }
 
 int default_wake_function(wait_queue_t *curr, int wake_flags)
 {
-	complete(&curr->done);
+    complete(&curr->done);
     return 0;
 }
 
 static void __wake_up_common(wait_queue_head_t *q, int nr_exclusive, int wake_flags)
 {
-	wait_queue_t *curr, *next;
+    wait_queue_t *curr, *next;
 
-	list_for_each_entry_safe(curr, next, &q->task_list, task_list) {
-		unsigned flags = curr->flags;
+    list_for_each_entry_safe(curr, next, &q->task_list, task_list) {
+        unsigned flags = curr->flags;
 
-		if (curr->func(curr, wake_flags) &&
-				(flags & WQ_FLAG_EXCLUSIVE) && !--nr_exclusive)
-			break;
-	}
+        if (curr->func(curr, wake_flags) &&
+                (flags & WQ_FLAG_EXCLUSIVE) && !--nr_exclusive)
+            break;
+    }
 }
 
 
@@ -68,9 +68,9 @@ static void __wake_up_common(wait_queue_head_t *q, int nr_exclusive, int wake_fl
  */
 void __wake_up(wait_queue_head_t *q, int nr_exclusive)
 {
-	pthread_mutex_lock(&q->lock);
-	__wake_up_common(q, nr_exclusive, 0);
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_lock(&q->lock);
+    __wake_up_common(q, nr_exclusive, 0);
+    pthread_mutex_unlock(&q->lock);
 }
 
 /*
@@ -78,36 +78,36 @@ void __wake_up(wait_queue_head_t *q, int nr_exclusive)
  */
 void __wake_up_locked(wait_queue_head_t *q)
 {
-	__wake_up_common(q, 1, 0);
+    __wake_up_common(q, 1, 0);
 }
 
 void prepare_to_wait(wait_queue_head_t *q, wait_queue_t *wait)
 {
-	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
-	pthread_mutex_lock(&q->lock);
-	if (list_empty(&wait->task_list))
-		__add_wait_queue(q, wait);
+    wait->flags &= ~WQ_FLAG_EXCLUSIVE;
+    pthread_mutex_lock(&q->lock);
+    if (list_empty(&wait->task_list))
+        __add_wait_queue(q, wait);
 
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_unlock(&q->lock);
 }
 
 void prepare_to_wait_exclusive(wait_queue_head_t *q, wait_queue_t *wait)
 {
-	wait->flags |= WQ_FLAG_EXCLUSIVE;
-	pthread_mutex_lock(&q->lock);
-	if (list_empty(&wait->task_list))
-		__add_wait_queue(q, wait);
+    wait->flags |= WQ_FLAG_EXCLUSIVE;
+    pthread_mutex_lock(&q->lock);
+    if (list_empty(&wait->task_list))
+        __add_wait_queue(q, wait);
 
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_unlock(&q->lock);
 }
 
 
 void finish_wait(wait_queue_head_t *q, wait_queue_t *wait)
 {
-	pthread_mutex_lock(&q->lock);
-	if (!list_empty(&wait->task_list)) 
-		list_del_init(&wait->task_list);
+    pthread_mutex_lock(&q->lock);
+    if (!list_empty(&wait->task_list)) 
+        list_del_init(&wait->task_list);
 
-	pthread_mutex_unlock(&q->lock);
+    pthread_mutex_unlock(&q->lock);
 }
 

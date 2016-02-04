@@ -18,7 +18,7 @@
     (hash_long((idx), bits))
 
 #define frag_hash_key(id) \
-        (FRAG_HASH_FN((id), FRAG_HASH_SHIFT))
+    (FRAG_HASH_FN((id), FRAG_HASH_SHIFT))
 
 
 
@@ -248,7 +248,7 @@ static int check_defrag(frag_queue_t *fq)
 
 out:
     return ret;
-   
+
 }
 
 static int data_frag_queue(frag_queue_t *fq, frag_node_t *frag)
@@ -303,7 +303,7 @@ int data_defrag(data_frags_t *frags, data_vec_t *v, void *frag_pkt)
 
     frag = frag_node_create(v, frag_pkt);
     fq = find_frag_queue(frags, frag);
-    
+
     if(!fq) {
         ret = -EINVAL;
         goto fail;
