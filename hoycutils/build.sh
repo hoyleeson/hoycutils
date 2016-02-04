@@ -2,7 +2,7 @@
 
 INSTAL_DIR=$PWD/_install
 
-aclocal
+aclocal -I m4
 autoconf
 autoheader
 libtoolize --automake
@@ -12,8 +12,14 @@ if [ -e $INSTAL_DIR ]; then
 	mkdir -p $INSTAL_DIR
 fi
 
-./configure --prefix=$INSTAL_DIR
+./configure --prefix=$INSTAL_DIR --enable-debug --enable-verbose 
 
 make
 make install
+make dist
+
+#compile samples.
+cd ./samples
+make clean
+make
 

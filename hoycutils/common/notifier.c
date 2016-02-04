@@ -10,44 +10,44 @@
  */
 
 static int __notifier_chain_register(struct notifier_block **nl,
-		struct notifier_block *n)
+        struct notifier_block *n)
 {
-	while ((*nl) != NULL) {
-		if (n->priority > (*nl)->priority)
-			break;
-		nl = &((*nl)->next);
-	}
-	n->next = *nl;
-	*nl = n;
-	return 0;
+    while ((*nl) != NULL) {
+        if (n->priority > (*nl)->priority)
+            break;
+        nl = &((*nl)->next);
+    }
+    n->next = *nl;
+    *nl = n;
+    return 0;
 }
 
 static int __notifier_chain_cond_register(struct notifier_block **nl,
-		struct notifier_block *n)
+        struct notifier_block *n)
 {
-	while ((*nl) != NULL) {
-		if ((*nl) == n)
-			return 0;
-		if (n->priority > (*nl)->priority)
-			break;
-		nl = &((*nl)->next);
-	}
-	n->next = *nl;
-	*nl = n;
-	return 0;
+    while ((*nl) != NULL) {
+        if ((*nl) == n)
+            return 0;
+        if (n->priority > (*nl)->priority)
+            break;
+        nl = &((*nl)->next);
+    }
+    n->next = *nl;
+    *nl = n;
+    return 0;
 }
 
 static int __notifier_chain_unregister(struct notifier_block **nl,
-		struct notifier_block *n)
+        struct notifier_block *n)
 {
-	while ((*nl) != NULL) {
-		if ((*nl) == n) {
-			*nl = n->next;
-			return 0;
-		}
-		nl = &((*nl)->next);
-	}
-	return -ENOENT;
+    while ((*nl) != NULL) {
+        if ((*nl) == n) {
+            *nl = n->next;
+            return 0;
+        }
+        nl = &((*nl)->next);
+    }
+    return -ENOENT;
 }
 
 /**
@@ -63,79 +63,78 @@ static int __notifier_chain_unregister(struct notifier_block **nl,
  *			last notifier function called.
  */
 static int __notifier_call_chain(struct notifier_block **nl,
-					unsigned long val, void *v,
-					int nr_to_call,	int *nr_calls)
+        unsigned long val, void *v,
+        int nr_to_call,	int *nr_calls)
 {
-	int ret = NOTIFY_DONE;
-	struct notifier_block *nb, *next_nb;
+    int ret = NOTIFY_DONE;
+    struct notifier_block *nb, *next_nb;
 
-	nb = *nl;
+    nb = *nl;
 
-	while (nb && nr_to_call) {
-		next_nb = nb->next;
+    while (nb && nr_to_call) {
+        next_nb = nb->next;
 
-		ret = nb->notifier_call(nb, val, v);
+        ret = nb->notifier_call(nb, val, v);
 
-		if (nr_calls)
-			(*nr_calls)++;
+        if (nr_calls)
+            (*nr_calls)++;
 
-		if ((ret & NOTIFY_STOP_MASK) == NOTIFY_STOP_MASK) {
-			loge("notifier_call_chain : NOTIFY BAD %pf\n", nb->notifier_call);
-			break;
-		}
-		nb = next_nb;
-		nr_to_call--;
-	}
-	return ret;
+        if ((ret & NOTIFY_STOP_MASK) == NOTIFY_STOP_MASK) {
+            loge("notifier_call_chain : NOTIFY BAD %pf\n", nb->notifier_call);
+            break;
+        }
+        nb = next_nb;
+        nr_to_call--;
+    }
+    return ret;
 }
 
 
 int notifier_chain_register(struct notifier_head *nh, struct notifier_block *n)
 {
-	int ret;
+    int ret;
 
-	pthread_rwlock_wrlock(&nh->lock);
-	ret = __notifier_chain_register(&nh->head, n);
-	pthread_rwlock_unlock(&nh->lock);
-	return ret;
+    pthread_rwlock_wrlock(&nh->lock);
+    ret = __notifier_chain_register(&nh->head, n);
+    pthread_rwlock_unlock(&nh->lock);
+    return ret;
 }
 
 int notifier_chain_cond_register(struct notifier_head *nh, struct notifier_block *n)
 {
-	int ret;
+    int ret;
 
-	pthread_rwlock_wrlock(&nh->lock);
-	ret = __notifier_chain_cond_register(&nh->head, n);
-	pthread_rwlock_unlock(&nh->lock);
-	return ret;
+    pthread_rwlock_wrlock(&nh->lock);
+    ret = __notifier_chain_cond_register(&nh->head, n);
+    pthread_rwlock_unlock(&nh->lock);
+    return ret;
 }
 
 int notifier_chain_unregister(struct notifier_head *nh, struct notifier_block *n)
 {
-	unsigned long flags;
-	int ret;
+    int ret;
 
-	pthread_rwlock_wrlock(&nh->lock);
-	ret = __notifier_chain_unregister(&nh->head, n);
-	pthread_rwlock_unlock(&nh->lock);
-	return ret;
+    pthread_rwlock_wrlock(&nh->lock);
+    ret = __notifier_chain_unregister(&nh->head, n);
+    pthread_rwlock_unlock(&nh->lock);
+    return ret;
 }
 
 
 int notifier_call_chain_nr(struct notifier_head *nh, unsigned long val, void *v,
-					int nr_to_call, int *nr_calls)
+        int nr_to_call, int *nr_calls)
 {
-	int ret;
+    int ret;
 
-	pthread_rwlock_rdlock(&nh->lock);
-	ret = __notifier_call_chain(&nh->head, val, v, nr_to_call, nr_calls);
-	pthread_rwlock_unlock(&nh->lock);
-	return ret;
+    pthread_rwlock_rdlock(&nh->lock);
+    ret = __notifier_call_chain(&nh->head, val, v, nr_to_call, nr_calls);
+    pthread_rwlock_unlock(&nh->lock);
+    return ret;
 }
 
 int notifier_call_chain(struct notifier_head *nh, unsigned long val, void *v)
 {
-	return notifier_call_chain_nr(nh, val, v, -1, NULL);
+    return notifier_call_chain_nr(nh, val, v, -1, NULL);
 }
 
 

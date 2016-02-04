@@ -1,6 +1,8 @@
 #ifndef _COMMON_TYPES_H_
 #define _COMMON_TYPES_H_
 
+#include <stddef.h>
+
 typedef signed char s8;
 typedef unsigned char u8;
 
@@ -13,11 +15,35 @@ typedef unsigned int u32;
 typedef signed long long s64;
 typedef unsigned long long u64;
 
+
+#ifdef CONFIG_64BIT
+#define BITS_PER_LONG 64
+#else
+#define BITS_PER_LONG 32
+#endif /* CONFIG_64BIT */
+
+
 #ifndef bool
 typedef int bool;
-#define  TRUE 	(1)
-#define  FALSE 	(0)
+
+enum {
+	FALSE = 0,
+	TRUE  = 1
+};
+
+enum {
+	false	= 0,
+	true	= 1
+};
 #endif
+
+#undef offsetof
+#ifdef __compiler_offsetof
+#define offsetof(TYPE,MEMBER) __compiler_offsetof(TYPE,MEMBER)
+#else
+#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#endif
+
 
 /*
  * Check at compile time that something is of a particular type.

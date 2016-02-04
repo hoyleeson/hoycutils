@@ -20,12 +20,12 @@
  */
 void wait_for_completion(struct completion *x)
 {
-	pthread_mutex_lock(&x->lock);
-	while(!x->done) {
-		pthread_cond_wait(&x->cond, &x->lock);
-	}
-	x->done--;
-	pthread_mutex_unlock(&x->lock);
+    pthread_mutex_lock(&x->lock);
+    while(!x->done) {
+        pthread_cond_wait(&x->cond, &x->lock);
+    }
+    x->done--;
+    pthread_mutex_unlock(&x->lock);
 }
 
 
@@ -40,32 +40,32 @@ void wait_for_completion(struct completion *x)
  */
 unsigned long wait_for_completion_timeout(struct completion *x, unsigned long ms)
 {
-	int ret;
-	struct timeval now;
-	struct timespec timeout;
+    int ret;
+    struct timeval now;
+    struct timespec timeout;
 
 #define ms2ns(ms) ((ms)*1000*1000)
 
-	gettimeofday(&now, NULL);
-	timeout.tv_sec = now.tv_sec + ms / 1000;
-	timeout.tv_nsec = now.tv_usec * 1000 + ms2ns(ms % 1000);
+    gettimeofday(&now, NULL);
+    timeout.tv_sec = now.tv_sec + ms / 1000;
+    timeout.tv_nsec = now.tv_usec * 1000 + ms2ns(ms % 1000);
 
-	pthread_mutex_lock(&x->lock);
+    pthread_mutex_lock(&x->lock);
 
-	ret = pthread_cond_timedwait(&x->cond, &x->lock, &timeout);
+    ret = pthread_cond_timedwait(&x->cond, &x->lock, &timeout);
 
-	if(ret == ETIMEDOUT) {
-		logi("wait for completion timeout!\n");
-	} else if(ret == 0) {
-		x->done--;
-		logi("receive the completion.\n");
-	} else {
-		ret = -1;
-		loge("wait for completion error!\n");
-	}
+    if(ret == ETIMEDOUT) {
+        logi("wait for completion timeout!\n");
+    } else if(ret == 0) {
+        x->done--;
+        logi("receive the completion.\n");
+    } else {
+        ret = -1;
+        loge("wait for completion error!\n");
+    }
 
-	pthread_mutex_unlock(&x->lock);
-	return ret;
+    pthread_mutex_unlock(&x->lock);
+    return ret;
 }
 
 
@@ -83,15 +83,15 @@ unsigned long wait_for_completion_timeout(struct completion *x, unsigned long ms
  */
 bool try_wait_for_completion(struct completion *x)
 {
-	int ret = 1;
+    int ret = 1;
 
-	pthread_mutex_lock(&x->lock);
-	if (!x->done)
-		ret = 0;
-	else
-		x->done--;
-	pthread_mutex_unlock(&x->lock);
-	return ret;
+    pthread_mutex_lock(&x->lock);
+    if (!x->done)
+        ret = 0;
+    else
+        x->done--;
+    pthread_mutex_unlock(&x->lock);
+    return ret;
 }
 
 
@@ -105,12 +105,12 @@ bool try_wait_for_completion(struct completion *x)
  */
 bool completion_done(struct completion *x)
 {
-	int ret = 1;
-	pthread_mutex_lock(&x->lock);
-	if (!x->done)
-		ret = 0;
-	pthread_mutex_unlock(&x->lock);
-	return ret;
+    int ret = 1;
+    pthread_mutex_lock(&x->lock);
+    if (!x->done)
+        ret = 0;
+    pthread_mutex_unlock(&x->lock);
+    return ret;
 }
 
 /**
@@ -127,10 +127,10 @@ bool completion_done(struct completion *x)
  */
 void complete(struct completion *x)
 {
-	pthread_mutex_lock(&x->lock);
-	x->done++;
-	pthread_cond_signal(&x->cond);
-	pthread_mutex_unlock(&x->lock);
+    pthread_mutex_lock(&x->lock);
+    x->done++;
+    pthread_cond_signal(&x->cond);
+    pthread_mutex_unlock(&x->lock);
 }
 
 /**
@@ -144,10 +144,10 @@ void complete(struct completion *x)
  */
 void complete_all(struct completion *x) 
 {
-	pthread_mutex_lock(&x->lock);
-	x->done += UINT_MAX/2;
-	pthread_cond_broadcast(&x->cond);
-	pthread_mutex_unlock(&x->lock);
+    pthread_mutex_lock(&x->lock);
+    x->done += UINT_MAX/2;
+    pthread_cond_broadcast(&x->cond);
+    pthread_mutex_unlock(&x->lock);
 }
 
 

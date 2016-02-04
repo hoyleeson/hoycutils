@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include <common/types.h>
+
 void* xalloc(size_t   sz);
 void* xzalloc(size_t  sz);
 void* xrealloc(void*  block, size_t  size);

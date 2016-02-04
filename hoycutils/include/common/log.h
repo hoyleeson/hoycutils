@@ -10,9 +10,12 @@
 #define LOG_LEVEL_MAX  	LOG_VERBOSE
 
 #define LOG_DEFAULT_LEVEL 	LOG_VERBOSE
-#define LOG_TAGS 	"turn"
+
+#define LOG_TAGS 	"hoycutils"
 
 #define LOG_BUF_SIZE 	(1024)
+
+void log_printf(int level, const char *tag, const char *fmt, ...);
 
 #define LOG_PRINT(l, ...) 	log_printf(l, LOG_TAGS, __VA_ARGS__)
 
@@ -48,5 +51,6 @@
 
 #define fatal(...) 		do { LOG_PRINT(LOG_FATAL, __VA_ARGS__); exit(1); } while(0)
 
+#define panic(...) 		fatal(__VA_ARGS__);
 
 #endif

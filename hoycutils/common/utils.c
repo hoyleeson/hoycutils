@@ -1,4 +1,5 @@
 #include <stdarg.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -48,18 +49,18 @@ void* xrealloc(void*  block, size_t  size)
 
 int hexdigit( int  c )
 {
-	unsigned  d;
+    unsigned  d;
 
-	d = (unsigned)(c - '0');
-	if (d < 10) return d;
+    d = (unsigned)(c - '0');
+    if (d < 10) return d;
 
-	d = (unsigned)(c - 'a');
-	if (d < 6) return d+10;
+    d = (unsigned)(c - 'a');
+    if (d < 6) return d+10;
 
-	d = (unsigned)(c - 'A');
-	if (d < 6) return d+10;
+    d = (unsigned)(c - 'A');
+    if (d < 6) return d+10;
 
-	return -1;
+    return -1;
 }
 
 int hex2int(const uint8_t*  data, int  len)
@@ -139,7 +140,7 @@ void fd_setnonblock(int  fd)
 
     if (flags < 0) {
         fatal("%s: could not get flags for fd %d: %s",
-               __FUNCTION__, fd, strerror(errno));
+                __FUNCTION__, fd, strerror(errno));
     }
 
     do {
@@ -148,7 +149,7 @@ void fd_setnonblock(int  fd)
 
     if (ret < 0) {
         fatal("%s: could not set fd %d to non-blocking: %s",
-               __FUNCTION__, fd, strerror(errno));
+                __FUNCTION__, fd, strerror(errno));
     }
 }
 
@@ -187,7 +188,7 @@ time_t gettime(void)
 
     return ts.tv_sec;
 #else
-	return time(NULL);
+    return time(NULL);
 #endif
 }
 
@@ -203,7 +204,7 @@ void *read_file(const char *fname, unsigned *_sz)
     data = 0;
     fd = open(fname, O_RDONLY);
     if(fd < 0)
-	   	return 0;
+        return 0;
 
     // for security reasons, disallow world-writable
     // or group-writable files
@@ -218,29 +219,29 @@ void *read_file(const char *fname, unsigned *_sz)
 
     sz = lseek(fd, 0, SEEK_END);
     if(sz < 0)
-	   	goto oops;
+        goto oops;
 
     if(lseek(fd, 0, SEEK_SET) != 0) 
-		goto oops;
+        goto oops;
 
     data = (char*) malloc(sz + 2);
     if(data == 0)
-	   	goto oops;
+        goto oops;
 
     if(read(fd, data, sz) != sz) 
-		goto oops;
+        goto oops;
 
     close(fd);
     data[sz] = '\n';
     data[sz+1] = 0;
     if(_sz)
-	   	*_sz = sz;
+        *_sz = sz;
 
     return data;
 
 oops:
     close(fd);
     if(data != 0)
-	   	free(data);
+        free(data);
     return 0;
 }
