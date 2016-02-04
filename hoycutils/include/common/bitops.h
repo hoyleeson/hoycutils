@@ -13,6 +13,8 @@
 #define _COMMON_BITOPS_H_
 
 #include <common/types.h>
+#include <stdint.h>
+#include <common/compiler.h>
 
 /*
  * deal with unrepresentable constant logarithms
