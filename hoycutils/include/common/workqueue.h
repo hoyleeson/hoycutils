@@ -19,6 +19,17 @@ typedef void (*work_func_t)(struct work_struct *work);
 enum {
 	WORK_STRUCT_PENDING_BIT = 0,    /* work item is pending execution */
 	WORK_STRUCT_DELAYED_BIT = 1,    /* work item is delayed */
+
+    WORK_STRUCT_PENDING = 1 << WORK_STRUCT_PENDING_BIT,
+    WORK_STRUCT_DELAYED = 1 << WORK_STRUCT_DELAYED_BIT,
+
+    WORK_STRUCT_FLAG_BITS = 2,
+    WORK_STRUCT_FLAG_MASK = (1UL << WORK_STRUCT_FLAG_BITS) - 1,
+    WORK_STRUCT_WQ_DATA_MASK = ~WORK_STRUCT_FLAG_MASK,
+
+    /* bit mask for work_busy() return values */
+    WORK_BUSY_PENDING   = 1 << 0,
+    WORK_BUSY_RUNNING   = 1 << 1,
 };
 
 struct work_struct {
@@ -37,27 +48,88 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
 	return container_of(work, struct delayed_work, work);
 }
 
-#define __WORK_INITIALIZER(n, f, d) {              \
-	.data = (d),            \
+#define __WORK_INITIALIZER(n, f) {              \
+	.data = 0,            \
 	.entry  = { &(n).entry, &(n).entry },           \
 	.func = (f),                        \
 }
 
-#define __DELAYED_WORK_INITIALIZER(n, f, d) {          \
-	.work = __WORK_INITIALIZER((n).work, (f), (d)),      \
+#define __DELAYED_WORK_INITIALIZER(n, f) {          \
+	.work = __WORK_INITIALIZER((n).work, (f)),      \
 	.timer = TIMER_INITIALIZER((n).timer, NULL, 0, 0),         \
 }
 
 
-#define DECLARE_WORK(n, f, d)                  \
-	struct work_struct n = __WORK_INITIALIZER(n, f, d)
+#define DECLARE_WORK(n, f)                  \
+	struct work_struct n = __WORK_INITIALIZER(n, f)
 
-#define DECLARE_DELAYED_WORK(n, f, d)              \
+#define DECLARE_DELAYED_WORK(n, f)              \
 	struct delayed_work n = __DELAYED_WORK_INITIALIZER(n, f)
 
 
+/*
+ * initialize a work item's function pointer
+ */
+#define PREPARE_WORK(_work, _func)              \
+    do {                            \
+        (_work)->func = (_func);            \
+    } while (0)
+
+#define PREPARE_DELAYED_WORK(_work, _func)          \
+    PREPARE_WORK(&(_work)->work, (_func))
+
+
+#define INIT_WORK(_work, _func)                 \
+    do {                                \
+        (_work)->data = 0;   \
+        INIT_LIST_HEAD(&(_work)->entry);            \
+        PREPARE_WORK((_work), (_func));             \
+    } while (0)
+
+#define INIT_DELAYED_WORK(_work, _func)             \
+    do {                            \
+        INIT_WORK(&(_work)->work, (_func));     \
+        init_timer(&(_work)->timer);            \
+    } while (0)
+
+
+/*
+ * work_pending - Find out whether a work item is currently pending
+ * @work: The work item in question
+ */
+#define work_pending(work) \
+    (!!((work)->data & WORK_STRUCT_PENDING_BIT)) 
+
+/**
+ * delayed_work_pending - Find out whether a delayable work item is currently
+ * pending
+ * @work: The work item in question
+ */
+#define delayed_work_pending(w) \
+    work_pending(&(w)->work)
+
+
 #define create_workqueue(max_active)					\
-	alloc_workqueue((max_active), 0)
+    alloc_workqueue((max_active), 0)
+
+/*
+ * Workqueue flags and constants.  For details, please refer to
+ * Documentation/workqueue.txt.
+ */
+enum {
+    WQ_NON_REENTRANT    = 1 << 0, /* guarantee non-reentrance */
+    WQ_UNBOUND      = 1 << 1, /* not bound to any cpu */
+    WQ_FREEZABLE        = 1 << 2, /* freeze during suspend */
+    WQ_MEM_RECLAIM      = 1 << 3, /* may be used for memory reclaim */
+    WQ_HIGHPRI      = 1 << 4, /* high priority */
+    WQ_CPU_INTENSIVE    = 1 << 5, /* cpu instensive workqueue */
+
+    WQ_DRAINING     = 1 << 6, /* internal: workqueue is draining */
+    WQ_RESCUER      = 1 << 7, /* internal: workqueue has rescuer */
+
+    WQ_MAX_ACTIVE       = 512,    /* I like 512, better ideas? */
+    WQ_DFL_ACTIVE       = WQ_MAX_ACTIVE / 2,
+};
 
 
 extern struct workqueue_struct *global_wq;

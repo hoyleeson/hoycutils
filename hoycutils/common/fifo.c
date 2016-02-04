@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <common/common.h>
+#include <common/bitops.h>
 #include <common/fifo.h>
 
 /*

@@ -2,6 +2,7 @@
 #define _COMMON_WAIT_H_
 
 #include <pthread.h>
+
 #include <common/completion.h>
 #include <common/list.h>
 
@@ -31,7 +32,7 @@ typedef struct __wait_queue_head wait_queue_head_t;
 	.task_list	= { NULL, NULL } }
 
 #define DECLARE_WAITQUEUE(name)					\
-	wait_queue_t name = __WAITQUEUE_INITIALIZER(name, tsk)
+	wait_queue_t name = __WAITQUEUE_INITIALIZER(name)
 
 #define __WAIT_QUEUE_HEAD_INITIALIZER(name) {				\
 	.lock		= PTHREAD_MUTEX_INITIALIZER,		\
