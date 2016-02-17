@@ -13,6 +13,7 @@
 #include <common/utils.h>
 #include <common/timer.h>
 #include <common/ioasync.h>
+#include <common/workqueue.h>
 
 #include "serv.h"
 #include "turn.h"
@@ -121,6 +122,7 @@ static void do_help(void)
 
 static void common_init(void)
 {
+    init_workqueues();
     global_ioasync_init();
     init_task_protocals();
     init_timers();

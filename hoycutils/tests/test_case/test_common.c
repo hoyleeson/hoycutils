@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <common/list.h>
+#include <common/log.h>
 #include <common/configs.h>
+#include <common/workqueue.h>
 
 
 struct test_list_st
@@ -44,3 +47,32 @@ int test_configs(int argc, char **argv)
 	return 0;
 }
 
+struct test_wq
+{
+    struct work_struct work;
+    int val;
+};
+
+static void handle_work(struct work_struct *work)
+{
+    struct test_wq *twq; 
+
+    twq = container_of(work, struct test_wq, work); 
+    printf("val:%d\n", twq->val);
+}
+
+int test_workqueue(int argc, char **argv)
+{
+    struct workqueue_struct *wq;
+    struct test_wq twq; 
+
+    init_workqueues();
+    wq = create_workqueue();
+
+    INIT_WORK(&twq.work, handle_work);
+    twq.val = 35;
+
+    queue_work(wq, &twq.work);
+    sleep(1);
+    return 0;
+}

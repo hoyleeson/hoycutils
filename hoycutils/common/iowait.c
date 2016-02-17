@@ -27,8 +27,8 @@ static struct hlist_head *res_slot_head(iowait_t *wait, int type, int seq)
 {
     unsigned long key;
 
-    key = (uint64_t)type << 16 | seq;
-    key = hash_long(key, RES_SLOT_CAPACITY);
+    key = type << 16 | seq;
+    key = hash_long(key, RES_SLOT_SHIFT);
     return &wait->slots[key];
 }
 

@@ -77,7 +77,7 @@ struct poller {
     int ctl_socks[2];
     int running;
 
-    wait_queue_head_t wq;
+    wait_queue_head_t waitq;
     pthread_mutex_t lock;
 };
 

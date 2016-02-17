@@ -38,8 +38,8 @@ struct ioasync {
      * freeing themselves.
      */
     struct list_head closing_list;
-
     pthread_mutex_t lock;
+    struct workqueue_struct *wq;
 };
 
 
@@ -66,11 +66,12 @@ struct iohandler {
 
     struct handle_ops h_ops;
     void *priv_data;
+
+    struct work_struct work;
     struct queue *q_in;
     struct queue *q_out;
 
-    struct list_head node;
-
+    struct list_head entry;
     pthread_mutex_t lock;
     struct ioasync* owner;
 };
@@ -119,7 +120,7 @@ void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *pkb)
 
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = pkb;
-    queue_in(ioh->q_in, (struct packet *)pack);
+    queue_in(ioh->q_out, (struct packet *)pack);
 }
 
 void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *pkb, struct sockaddr *to)
@@ -129,7 +130,7 @@ void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *pkb, struct sockaddr *to
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = pkb;
     pack->addr = *to;
-    queue_in(ioh->q_in, (struct packet *)pack);
+    queue_in(ioh->q_out, (struct packet *)pack);
 }
 
 void iohandler_send(iohandler_t *ioh, const uint8_t *data, int len)
@@ -155,16 +156,31 @@ void iohandler_sendto(iohandler_t *ioh, const uint8_t *data, int len, struct soc
 }
 
 
-static void iohandler_packet_handle(struct work_struct *work)
+static void iohandler_in_handle_work(struct work_struct *work)
 {
+    struct iopacket *pack;
+    iohandler_t *ioh;
+   
+    ioh = container_of(work, struct iohandler, work); 
 
+    if(queue_count(ioh->q_in) == 0)
+        return;
+
+    pack = (struct iopacket *)queue_out(ioh->q_in);
+
+    if(ioh->h_ops.post) 
+        ioh->h_ops.post(ioh->priv_data, pack);
+
+    iohandler_pack_free(ioh, pack, 1);
 }
 
-static void iohandler_pack_queue(iohandler_t *ioh, struct iopacket *pack)
+static void iohandler_in_pack_queue(iohandler_t *ioh, struct iopacket *pack)
 {
-    //ioasync_t *aio = ioh->owner;
+    ioasync_t *aio = ioh->owner;
 
-    //   queue_work();
+    queue_in(ioh->q_in, (struct packet *)pack);
+
+    queue_work(aio->wq, &ioh->work);
 }
 
 static int iohandler_read(iohandler_t* ioh)
@@ -180,21 +196,21 @@ static int iohandler_read(iohandler_t* ioh)
             pkb->len = fd_read(ioh->fd, pkb->data, PACKET_MAX_PAYLOAD);
             break;
         case HANDLER_TYPE_UDP:
-            {
-                socklen_t addrlen = sizeof(struct sockaddr_in);
-                bzero(&pack->addr, sizeof(pack->addr));
-                pkb->len = recvfrom(ioh->fd, &pkb->data, PACKET_MAX_PAYLOAD,
-                        0, &pack->addr, &addrlen);
-                break;
-            }
+        {
+            socklen_t addrlen = sizeof(struct sockaddr_in);
+            bzero(&pack->addr, sizeof(pack->addr));
+            pkb->len = recvfrom(ioh->fd, &pkb->data, PACKET_MAX_PAYLOAD,
+                    0, &pack->addr, &addrlen);
+            break;
+        }
         case HANDLER_TYPE_TCP_ACCEPT:
-            {
-                int channel;
-                channel = fd_accept(ioh->fd);
-                memcpy(pkb->data, &channel, sizeof(int));
-                pkb->len = sizeof(int);
-                break;
-            }
+        {
+            int channel;
+            channel = fd_accept(ioh->fd);
+            memcpy(pkb->data, &channel, sizeof(int));
+            pkb->len = sizeof(int);
+            break;
+        }
         default:
             pkb->len = -1;
             break;
@@ -203,7 +219,7 @@ static int iohandler_read(iohandler_t* ioh)
     if(pkb->len < 0)
         goto fail;
 
-    iohandler_pack_queue(ioh, pack);
+    iohandler_in_pack_queue(ioh, pack);
     return 0;
 
 fail:
@@ -287,7 +303,7 @@ static void iohandler_close(iohandler_t *ioh)
         ioh->h_ops.close(ioh->priv_data);
 
     pthread_mutex_lock(&aio->lock);
-    list_del(&ioh->node);
+    list_del(&ioh->entry);
     pthread_mutex_unlock(&aio->lock);
 
     queue_release(ioh->q_in);
@@ -315,8 +331,8 @@ void iohandler_shutdown(iohandler_t *ioh)
         ioh->closing = 1;
 
         pthread_mutex_lock(&aio->lock);
-        list_del(&ioh->node);
-        list_add(&ioh->node, &aio->closing_list);
+        list_del(&ioh->entry);
+        list_add(&ioh->entry, &aio->closing_list);
         pthread_mutex_unlock(&aio->lock);
 
         return;
@@ -368,10 +384,11 @@ static iohandler_t *ioasync_create_context(ioasync_t *aio, int fd, int type)
     ioh->q_out = queue_init(0);
     ioh->owner = aio;
     pthread_mutex_init(&ioh->lock, NULL);
+    INIT_WORK(&ioh->work, iohandler_in_handle_work);
 
     /*Add to active list*/
     pthread_mutex_lock(&aio->lock);
-    list_add(&ioh->node, &aio->active_list);
+    list_add(&ioh->entry, &aio->active_list);
     pthread_mutex_unlock(&aio->lock);
 
     poller_event_add(&aio->poller, fd, iohandler_event, ioh);
@@ -509,6 +526,7 @@ ioasync_t *ioasync_init(void)
     INIT_LIST_HEAD(&aio->closing_list);
 
     pthread_mutex_init(&aio->lock, NULL);
+    aio->wq = create_workqueue();
 
     ret = pthread_create(&thread, NULL, ioasync_handle, aio);
     if(ret) {

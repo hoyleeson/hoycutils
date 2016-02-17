@@ -3,5 +3,6 @@
 
 extern int test_list(int argc, char **argv);
 extern int test_configs(int argc, char **argv);
+extern int test_workqueue(int argc, char **argv);
 
 #endif

@@ -95,5 +95,8 @@ static inline void dump_data(const char *desc, void *data, int len)
 
 void dump_stack(void);
 
+/*XXX*/
+#define hhhh    logi("--------------%s:%d------------\n", __func__, __LINE__);
+
 #endif
 

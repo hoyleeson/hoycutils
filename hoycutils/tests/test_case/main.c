@@ -12,7 +12,8 @@ struct test_case
 
 struct test_case cases[] = {
 	{"list", "", test_list},
-	{"list", "", test_configs},
+	{"configs", "", test_configs},
+	{"workqueue", "", test_workqueue},
 
 };
 
@@ -38,6 +39,6 @@ int main(int argc, char **argv)
 	}
 
 	printf("\n\n=======================end================================\n");
-	printf("result: failed count:%d\n", result);
+	printf("test finish. failed count:%d\n", result);
     return 0;
 }
