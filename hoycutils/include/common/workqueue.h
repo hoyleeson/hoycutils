@@ -160,4 +160,6 @@ extern void workqueue_set_max_active(struct workqueue_struct *wq,
 extern bool workqueue_congested(unsigned int cpu, struct workqueue_struct *wq);
 extern unsigned int work_busy(struct work_struct *work);
 
+int init_workqueues(void);
+
 #endif

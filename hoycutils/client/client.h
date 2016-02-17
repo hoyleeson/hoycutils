@@ -50,7 +50,7 @@ void client_send_state_img(void *data, int len);
 
 int client_init(const char *host, int mode, event_cb callback);
 int client_task_start(void);
-void client_stop(void);
+void client_release(void);
 
 /* state: out argument. */
 int client_state_save(struct cli_context_state *state);
@@ -60,6 +60,7 @@ int client_state_load(struct cli_context_state *state);
 
 /* used for debug. */
 void client_state_dump(struct cli_context_state *state);
+void client_dump(void);
 
 enum {
     EVENT_NONE,

@@ -3,6 +3,8 @@
 
 #include <pthread.h>
 
+#include <common/wait.h>
+
 /* A struct poller object is used to monitor activity on one or more
  * file descriptors (e.g sockets).
  *
@@ -75,6 +77,7 @@ struct poller {
     int ctl_socks[2];
     int running;
 
+    wait_queue_head_t wq;
     pthread_mutex_t lock;
 };
 

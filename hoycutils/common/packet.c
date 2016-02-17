@@ -25,27 +25,28 @@ void free_pack_buf_pool(pack_buf_pool_t *pool)
 }
 
 
-pack_buf_t *alloc_pack_buf(pack_buf_pool_t *pool)
+pack_buf_t *pack_buf_alloc(pack_buf_pool_t *pool)
 {
-    pack_buf_t *buf;
-    buf = mempool_alloc(pool->pool);
+    pack_buf_t *pkb;
+    pkb = mempool_alloc(pool->pool);
 
-    buf->owner = pool;
-    fake_atomic_init(&buf->refcount, 1); 
+    pkb->owner = pool;
+    fake_atomic_init(&pkb->refcount, 1); 
 
-    return buf;
+    return pkb;
 }
 
-pack_buf_t *pack_buf_get(pack_buf_t *buf)
+pack_buf_t *pack_buf_get(pack_buf_t *pkb)
 {
-    fake_atomic_inc(&buf->refcount); 
+    fake_atomic_inc(&pkb->refcount); 
+    return pkb;
 }
 
-void free_pack_buf(pack_buf_t *buf)
+void pack_buf_free(pack_buf_t *pkb)
 {
-    if(fake_atomic_dec_and_test(&buf->refcount)) {
-        pack_buf_pool_t *pool = buf->owner;
-        mempool_free(pool->pool, buf); 
+    if(fake_atomic_dec_and_test(&pkb->refcount)) {
+        pack_buf_pool_t *pool = pkb->owner;
+        mempool_free(pool->pool, pkb); 
     }
 }
 

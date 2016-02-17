@@ -1,6 +1,13 @@
 #ifndef _COMMON_LOG_H_
 #define _COMMON_LOG_H_
 
+#include <stdio.h>
+#include <stdint.h>
+
+#define LOG_TAGS 	"hoycutils"
+
+#ifndef ANDROID
+
 #define LOG_FATAL 		(0)
 #define LOG_ERROR 		(1)
 #define LOG_WARNING 	(2)
@@ -11,46 +18,82 @@
 
 #define LOG_DEFAULT_LEVEL 	LOG_VERBOSE
 
-#define LOG_TAGS 	"hoycutils"
-
 #define LOG_BUF_SIZE 	(1024)
 
 void log_printf(int level, const char *tag, const char *fmt, ...);
 
 #define LOG_PRINT(l, ...) 	log_printf(l, LOG_TAGS, __VA_ARGS__)
 
-//#define VDEBUG
+#define LOGV(...)   LOG_PRINT(LOG_VERBOSE, __VA_ARGS__)
+#define LOGD(...)   LOG_PRINT(LOG_DEBUG, __VA_ARGS__)
+#define LOGI(...)   LOG_PRINT(LOG_INFO, __VA_ARGS__)
+#define LOGW(...)   LOG_PRINT(LOG_WARNING, __VA_ARGS__)
+#define LOGE(...)   LOG_PRINT(LOG_ERROR, __VA_ARGS__)
+
+#define logprint(...)      printf(__VA_ARGS__)
+
+#else /* #else ANDROID */
+
+#include "jni.h"
+#include <android/log.h>
+
+#define LOGV(...)   __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
+#define LOGD(...)   __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGI(...)   __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGW(...)   __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
+#define LOGE(...)   __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#define logprint(...)      LOGI(__VA_ARGS__)
+
+#endif  /* #endif ANDROID */
+
 
 #ifdef VDEBUG
-#define logv(...) 		LOG_PRINT(LOG_VERBOSE, __VA_ARGS__)
-#undef DDEBUG
+#define logv(...) 		LOGV(__VA_ARGS__)
+
+static inline void dump_data(const char *desc, void *data, int len) 
+{
+    int i;
+    uint8_t *p = (uint8_t *)data;
+
+    logprint("[%s]dump data(%d):\n", desc, len);
+    for(i=0; i<len; i++) {
+        if((i % 16) == 0)
+            logprint("\n");
+        logprint("%02x ", *(p + i));
+    }
+
+    logprint("\n");
+}
+
+#ifndef DDEBUG
 #define DDEBUG
-#undef LOGINFO
-#define LOGINFO
+#endif
+
 #else
 #define logv(...)
+
+static inline void dump_data(const char *desc, void *data, int len) 
+{
+}
+
 #endif
 
 #ifdef DDEBUG
-#define logd(...) 		LOG_PRINT(LOG_DEBUG, __VA_ARGS__)
-#undef LOGINFO
-#define LOGINFO
+#define logd(...) 		LOGD(__VA_ARGS__)
 #else
 #define logd(...)
 #endif
 
-#ifdef LOGINFO
-#define logi(...) 		LOG_PRINT(LOG_INFO, __VA_ARGS__)
-#else
-#define logi(...)
-#endif
+#define logi(...) 		LOGI(__VA_ARGS__)
+#define logw(...) 		LOGW(__VA_ARGS__)
+#define loge(...) 		LOGE(__VA_ARGS__)
 
-#define logw(...) 		LOG_PRINT(LOG_WARNING, __VA_ARGS__)
-
-#define loge(...) 		LOG_PRINT(LOG_ERROR, __VA_ARGS__)
-
-#define fatal(...) 		do { LOG_PRINT(LOG_FATAL, __VA_ARGS__); exit(1); } while(0)
+#define fatal(...) 		do { loge(__VA_ARGS__); exit(-1); } while(0)
 
 #define panic(...) 		fatal(__VA_ARGS__);
 
+void dump_stack(void);
+
 #endif
+

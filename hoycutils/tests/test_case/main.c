@@ -39,4 +39,5 @@ int main(int argc, char **argv)
 
 	printf("\n\n=======================end================================\n");
 	printf("result: failed count:%d\n", result);
+    return 0;
 }

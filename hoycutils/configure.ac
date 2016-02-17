@@ -114,7 +114,6 @@ AC_CONFIG_FILES([Makefile
 				 include/Makefile include/common/Makefile 
 				 configs/Makefile
 				 serv/Makefile
-				 samples/Makefile
 				 tests/Makefile tests/test_case/Makefile
 				 docs/Makefile])
 AC_OUTPUT

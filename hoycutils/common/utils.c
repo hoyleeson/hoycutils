@@ -7,11 +7,16 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+#include <sys/ioctl.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <common/log.h>
+
+#define DEFAULT_NET_DEV     "eth0"
 
 /** UTILITIES
  **/
@@ -245,3 +250,39 @@ oops:
         free(data);
     return 0;
 }
+
+int get_ipaddr(const char* eth, char* ipaddr)
+{
+    int i = 0;
+    int sockfd;
+    struct ifconf ifconf;
+    char buf[512];
+    struct ifreq *ifreq;
+    char *dev = (char *)eth;
+
+    if(!dev) {
+        dev = DEFAULT_NET_DEV;
+    }
+
+    ifconf.ifc_len = 512;
+    ifconf.ifc_buf = buf;
+
+    if((sockfd = socket(AF_INET, SOCK_DGRAM, 0))<0) {
+        perror("socket");
+        exit(1);
+    }
+
+    ioctl(sockfd, SIOCGIFCONF, &ifconf);
+    ifreq = (struct ifreq*)buf;
+
+    for(i=(ifconf.ifc_len/sizeof(struct ifreq)); i>0; i--) {
+        if(strcmp(ifreq->ifr_name, dev)==0) {
+            strcpy(ipaddr, inet_ntoa(((struct sockaddr_in*)&(ifreq->ifr_addr))->sin_addr));
+            return 0;
+        }
+
+        ifreq++;
+    }
+    return -EINVAL;
+}
+

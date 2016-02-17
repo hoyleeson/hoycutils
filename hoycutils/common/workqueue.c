@@ -810,6 +810,7 @@ static void *worker_thread(void *__worker)
 {
     struct worker *worker = __worker;
     struct global_wq *gwq = worker->gwq;
+    struct hlist_head *bwh;
     DECLARE_WAITQUEUE(wait);
 
 woke_up:
@@ -829,6 +830,9 @@ recheck:
         struct work_struct *work =
             list_first_entry(&gwq->worklist,
                     struct work_struct, entry);
+
+        bwh = busy_worker_head(gwq, work);
+        hlist_add_head(&worker->hentry, bwh);
 
         worker->current_work = work;
         worker->current_func = work->func;

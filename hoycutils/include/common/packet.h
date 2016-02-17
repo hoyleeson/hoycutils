@@ -5,13 +5,14 @@
 #include <common/list.h>
 #include <common/fake_atomic.h>
 #include <common/mempool.h>
+#include <common/common.h>
 
 #define PACKET_MAX_PAYLOAD      (2000)
 
 typedef struct _pack_buf pack_buf_t;
 
 struct packet {
-	struct list_head node;
+    struct list_head node;
     pack_buf_t *buf;
 };
 
@@ -28,13 +29,18 @@ struct _pack_buf {
     uint8_t data[0];
 };
 
+#define node_to_item(node, container, member) \
+    (container *) (((char*) (node)) - offsetof(container, member))
+
+#define data_to_pack_buf(ptr) \
+    node_to_item(ptr, pack_buf_t, data)
 
 pack_buf_pool_t *create_pack_buf_pool(int esize, int ecount);
 void free_pack_buf_pool(pack_buf_pool_t *pool);
 
-pack_buf_t *alloc_pack_buf(pack_buf_pool_t *pool);
-pack_buf_t *pack_buf_get(pack_buf_t *buf);
-void free_pack_buf(pack_buf_t *buf);
+pack_buf_t *pack_buf_alloc(pack_buf_pool_t *pool);
+pack_buf_t *pack_buf_get(pack_buf_t *pkb);
+void pack_buf_free(pack_buf_t *pkb);
 
 
 #endif

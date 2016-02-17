@@ -12,10 +12,11 @@
 #include <netinet/in.h>
 
 #include <protos.h>
-#include <common/iohandler.h>
-#include <common/thr_pool.h>
-#include <common/wait.h>
-#include <common/pack.h>
+#include <common/ioasync.h>
+#include <common/workqueue.h>
+#include <common/iowait.h>
+#include <common/packet.h>
+#include <common/pack_head.h>
 #include <common/sockets.h>
 #include <common/log.h>
 #include <common/hbeat.h>
@@ -47,7 +48,7 @@ struct pack_cli_msg {
 
 struct client_peer {
     uint32_t taskid;
-    ioasync_t *hand;
+    iohandler_t *hand;
     uint16_t nextseq;
     struct sockaddr_in serv_addr;
 };
@@ -71,10 +72,10 @@ struct client {
     uint32_t groupid;
     int mode;
     event_cb callback;
-    response_wait_t waits;
+    iowait_t waits;
     int running;
     data_frags_t *frags;
-    struct timer_item *hbeat_timer;
+    struct timer_list hbeat_timer;
 
     struct client_peer control; 	/* connect with center serv, taskid is invaild */
     struct client_peer task;
@@ -86,11 +87,11 @@ static struct client _client;
 
 static void *client_pkt_alloc(struct client_peer *peer)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
 
-    packet = ioasync_pkt_alloc(peer->hand);
+    pkb = iohandler_pack_buf_alloc(peer->hand);
 
-    return packet->data + pack_head_len();
+    return pkb->data + pack_head_len();
 }
 
 static int get_pkt_seq(struct client_peer *peer)
@@ -107,34 +108,33 @@ static int get_pkt_seq(struct client_peer *peer)
 
 static void client_pkt_send(struct client_peer *peer, int type, void *data, int len)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
 
     head = (pack_head_t *)((uint8_t *)data - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_pack_buf(head);
 
     /* init header */
     init_pack(head, type, len);
     head->seqnum = get_pkt_seq(peer);
 
-    packet->len = len + pack_head_len();
-//    packet->addr = *((struct sockaddr*)&peer->serv_addr);
+    pkb->len = len + pack_head_len();
 
     logd("client send packet, dist addr:%s, port:%d. type:%d, len:%d\n", 
             inet_ntoa(peer->serv_addr.sin_addr), 
             ntohs(peer->serv_addr.sin_port), type, len);
 
-    ioasync_pkt_sendto(peer->hand, packet, (struct sockaddr*)&peer->serv_addr);
+    iohandler_pkt_sendto(peer->hand, pkb, (struct sockaddr*)&peer->serv_addr);
 }
 
 static void cli_hbeat_start(struct client *cli)
 {
-    add_timer(cli->hbeat_timer, get_clock_ns() + HBEAD_DEAD_TIME);
+    mod_timer(&cli->hbeat_timer, curr_time_ms() + HBEAD_DEAD_LINE);
 }
 
 static void cli_hbeat_stop(struct client *cli)
 {
-    del_timer(cli->hbeat_timer);
+    del_timer(&cli->hbeat_timer);
 }
 
 int client_login(void)
@@ -479,8 +479,8 @@ static void cli_msg_handle(void* user, uint8_t *data, int len, void *from)
 
     logd("pack: type:%d, seq:%d, datalen:%d\n", head->type, head->seqnum, head->datalen);
 
-    if(head->magic != SERV_MAGIC ||
-            head->version != SERV_VERSION)
+    if(head->magic != PROTOS_MAGIC ||
+            head->version != PROTOS_VERSION)
         return;
 
     if(head->type == MSG_CENTER_ACK) {
@@ -530,8 +530,9 @@ static void pack_checkin_handle(struct pack_cli_msg *msg)
 {
     int ret;
     struct client *cli = &_client;
+    unsigned long len = msg->datalen;
 
-    ret = cli->callback(EVENT_CHECKIN, (void *)msg->data, (void *)msg->datalen);
+    ret = cli->callback(EVENT_CHECKIN, (void *)msg->data, (void *)len);
     if(ret) {
         loge("client EVENT_CHECKIN handle fail.\n");	
     }
@@ -541,45 +542,46 @@ static void pack_command_handle(struct pack_cli_msg *msg)
 {
     int ret;
     struct client *cli = &_client;
+    unsigned long len = msg->datalen;
 
-    ret = cli->callback(EVENT_COMMAND, (void *)msg->data, (void *)msg->datalen);
+    ret = cli->callback(EVENT_COMMAND, (void *)msg->data, (void *)len);
     if(ret) {
         loge("client EVENT_COMMAND handle fail.\n");	
     }
 }
 
-static void cli_frag_input(void *opaque, void *data, int len)
+static void cli_frag_input(void *opaque, void *data, int datalen)
 {
     int ret;
     struct client *cli = (struct client *)opaque;
+    unsigned long len = datalen;
 
     ret = cli->callback(EVENT_STATE_IMG, (void *)data, (void *)len);
-
     if(ret) {
         loge("client EVENT_STATE_IMG handle fail.\n");	
     }
 }
 
-static packet_t *payload_to_packet(void *p)
+static pack_buf_t *payload_to_pack_buf(void *p)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
 
     head = (pack_head_t *)((uint8_t *)p - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_pack_buf(head);
 
-    return packet;
+    return pkb;
 }
 
 
 static void cli_frag_pkt_free(void *opaque, void *frag_pkt)
 {
-    packet_t *packet;
-    struct client *cli = (struct client *)opaque;
+    pack_buf_t *pkb;
+//    struct client *cli = (struct client *)opaque;
 
-    packet = payload_to_packet(frag_pkt);
+    pkb = payload_to_pack_buf(frag_pkt);
 
-    ioasync_pkt_free(packet);
+    pack_buf_free(pkb);
 }
 
 static void pack_state_img_handle(struct pack_cli_msg *msg) 
@@ -587,7 +589,7 @@ static void pack_state_img_handle(struct pack_cli_msg *msg)
     /*XXX defrag. */
     struct client *cli = &_client;
     data_vec_t v;
-    packet_t *packet;
+    pack_buf_t *pkb;
 
     v.seq = msg->seq;
     v.mf = msg->mf;
@@ -597,8 +599,8 @@ static void pack_state_img_handle(struct pack_cli_msg *msg)
 
     logd("pack state img info: seq: %d, mf:%d, offset:%d, datalen:%d\n", 
             msg->seq, msg->mf, msg->frag_ofs, msg->datalen);
-    packet = payload_to_packet(msg);
-    ioasync_pkt_get(packet);
+    pkb = payload_to_pack_buf(msg);
+    pack_buf_get(pkb);
 
     data_defrag(cli->frags, &v, msg);
 }
@@ -640,8 +642,8 @@ static void cli_task_handle(void* user, uint8_t *data, int len, void *from)
 
     logd("pack: type:%d, seq:%d, datalen:%d\n", head->type, head->seqnum, head->datalen);
 
-    if(head->magic != SERV_MAGIC ||
-            head->version != SERV_VERSION)
+    if(head->magic != PROTOS_MAGIC ||
+            head->version != PROTOS_VERSION)
         return;
 
     if(head->type == MSG_CENTER_ACK) {
@@ -669,12 +671,13 @@ static void cli_task_close(void *user)
 {
 }
 
-
+#if 0
 static void *client_thread_handle(void *args)
 {
-    iohandler_loop(); 
+    ioasync_loop(); 
     return 0;
 }
+#endif
 
 
 #define DEFAULT_BUF_SIZE        (32*1024*1024)
@@ -692,7 +695,8 @@ int client_task_start(void)
     setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
     setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
 
-    cli->task.hand = ioasync_udp_create(sock, cli_task_handle, cli_task_close, cli);
+    cli->task.hand = iohandler_udp_create(get_global_ioasync(), sock, 
+            cli_task_handle, cli_task_close, cli);
 
     if (getsockname(sock, (struct sockaddr*)&addr, &addrlen) < 0) {
         close(sock);
@@ -712,18 +716,21 @@ static void cli_hbeat_timer_handle(unsigned long data)
     struct client *cli = (struct client *)data;
 
     client_hbeat();
-    mod_timer(cli->hbeat_timer, get_clock_ns() + HBEAD_DEAD_TIME);
+    mod_timer(&cli->hbeat_timer, curr_time_ms() + HBEAD_DEAD_LINE);
 }
-
-#define HASH_WAIT_OBJ_CAPACITY 	(256)
 
 int common_init(void)
 {
-    init_global_thpool();
-    iohandler_init();
-    timers_init();
+    init_workqueues();
+    global_ioasync_init();
+    init_timers();
 
     return 0;
+}
+
+void common_release(void)
+{
+    global_ioasync_release();
 }
 
 static void signal_handler(int signal)
@@ -750,8 +757,10 @@ int client_init(const char *host, int mode, event_cb callback)
 {
     int sock;
     struct hostent *hp;
+#if 0
     int ret;
     pthread_t th;
+#endif
     struct sockaddr_in addr; 	/* used for debug */
     socklen_t addrlen = sizeof(addr); 	/* used for debug */
     struct client *cli = &_client;
@@ -759,7 +768,7 @@ int client_init(const char *host, int mode, event_cb callback)
     signals_init();
     common_init();
 
-    response_wait_init(&cli->waits, HASH_WAIT_OBJ_CAPACITY);
+    iowait_init(&cli->waits);
 
     cli->callback = callback;
     cli->mode = mode;
@@ -792,27 +801,29 @@ int client_init(const char *host, int mode, event_cb callback)
     cli->userid = INVAILD_USERID;
     cli->groupid = INVAILD_GROUPID;
 
-    cli->hbeat_timer = new_timer(cli_hbeat_timer_handle, (unsigned long)cli);
-    cli->control.hand = ioasync_udp_create(sock,
+    init_timer(&cli->hbeat_timer);
+    setup_timer(&cli->hbeat_timer, cli_hbeat_timer_handle, (unsigned long)cli);
+    cli->control.hand = iohandler_udp_create(get_global_ioasync(), sock,
             cli_msg_handle, cli_msg_close, cli);
 
     cli->running = 1;
     /*	} */
 
+#if 0
     ret = pthread_create(&th, NULL, client_thread_handle, cli);
     if(ret)
         return ret;
+#endif
 
     return 0;
 }
 
-void client_stop(void)
+void client_release(void)
 {
     struct client *cli = &_client;
 
     cli->running = 0;
-    iohandler_done();
-    free_timer(cli->hbeat_timer);
+    common_release();
 }
 
 int client_state_save(struct cli_context_state *state)
@@ -860,7 +871,7 @@ void client_state_dump(struct cli_context_state *state)
 }
 
 
-static void client_dump(void)
+void client_dump(void)
 {
     struct client *cli = &_client;
     struct sockaddr_in *addr;

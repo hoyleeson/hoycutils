@@ -5,13 +5,16 @@
 #include <stddef.h>
 #include <pthread.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include <common/log.h>
-#include <common/pack.h>
+#include <common/hash.h>
+#include <common/iowait.h>
+#include <common/packet.h>
+#include <common/pack_head.h>
 #include <common/wait.h>
 #include <common/sockets.h>
-#include <common/iohandler.h>
-#include <arpa/inet.h>
+#include <common/ioasync.h>
 
 #include "node_mgr.h"
 #include "turn.h"
@@ -25,32 +28,31 @@ static int create_cli_mgr_channel(void)
 
 static void *client_pkt_alloc(cli_mgr_t *cm)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
 
-    packet = ioasync_pkt_alloc(cm->hand);
+    pkb = iohandler_pack_buf_alloc(cm->hand);
 
-    return packet->data + pack_head_len();
+    return pkb->data + pack_head_len();
 
 }
 
 static void client_pkt_sendto(cli_mgr_t *cm, int type, 
         void *data, int len, struct sockaddr *to)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
 
     head = (pack_head_t *)((uint8_t *)data - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_pack_buf(head);
 
     /* init header */
     init_pack(head, type, len);
     head->seqnum = cm->nextseq++;
 
-    packet->len = len + pack_head_len();
-//    packet->addr = *to;
+    pkb->len = len + pack_head_len();
 
-    dump_data("client mgr send data", packet->data, packet->len);
-    ioasync_pkt_sendto(cm->hand, packet, to);
+    dump_data("client mgr send data", pkb->data, pkb->len);
+    iohandler_pkt_sendto(cm->hand, pkb, to);
 }
 
 
@@ -76,28 +78,33 @@ static int cli_ack_handle(cli_mgr_t *cm, uint16_t seqnum)
 
 static void cli_mgr_add_user(cli_mgr_t *cm, user_info_t *user) 
 {
+    uint32_t key;
+
+    key = hash_32(user->userid, HASH_USER_SHIFT);
+
     pthread_mutex_lock(&cm->lock);
-    hashmapPut(cm->user_map, (void *)user->userid, user);
+
+    hlist_add_head(&user->hentry, &cm->user_map[key]);
     cm->user_count++;
+
     pthread_mutex_unlock(&cm->lock);
 }
 
-static user_info_t *cli_mgr_del_user(cli_mgr_t *cm, uint32_t userid)
+static user_info_t *__cli_mgr_get_user(cli_mgr_t *cm, uint32_t userid)
 {
+    uint32_t key;
     user_info_t *user;
+    struct hlist_node *tmp;
 
-    pthread_mutex_lock(&cm->lock);
+    key = hash_32(userid, HASH_USER_SHIFT);
 
-    user = hashmapRemove(cm->user_map, (void *)userid);
-    if(!user) {
-        pthread_mutex_unlock(&cm->lock);
-        return NULL;
+    hlist_for_each_entry(user, tmp, &cm->user_map[key], hentry) {
+        if(user->userid == userid) {
+            return user;
+        }
     }
 
-    cm->user_count--;
-
-    pthread_mutex_unlock(&cm->lock);
-    return user;
+    return NULL;
 }
 
 static user_info_t *cli_mgr_get_user(cli_mgr_t *cm, uint32_t userid)
@@ -105,7 +112,27 @@ static user_info_t *cli_mgr_get_user(cli_mgr_t *cm, uint32_t userid)
     user_info_t *user;
 
     pthread_mutex_lock(&cm->lock);
-    user = hashmapGet(cm->user_map, (void*)userid);
+    user = __cli_mgr_get_user(cm, userid);
+    pthread_mutex_unlock(&cm->lock);
+
+    return user;
+}
+
+static user_info_t *cli_mgr_del_user(cli_mgr_t *cm, uint32_t userid)
+{
+    user_info_t *user;
+
+
+    pthread_mutex_lock(&cm->lock);
+
+    user = __cli_mgr_get_user(cm, userid);
+    if(!user)
+        goto out;
+
+    hlist_del_init(&user->hentry);
+    cm->user_count--;
+
+out:
     pthread_mutex_unlock(&cm->lock);
     return user;
 }
@@ -113,10 +140,44 @@ static user_info_t *cli_mgr_get_user(cli_mgr_t *cm, uint32_t userid)
 
 static void cli_mgr_add_group(cli_mgr_t *cm, group_info_t *group) 
 {
+    uint32_t key;
+
+    key = hash_32(group->groupid, HASH_GROUP_SHIFT);
+
     pthread_mutex_lock(&cm->lock);
-    hashmapPut(cm->group_map, (void *)group->groupid, group);
+
+    hlist_add_head(&group->hentry, &cm->group_map[key]);
     cm->group_count++;
+
     pthread_mutex_unlock(&cm->lock);
+}
+
+static group_info_t *__cli_mgr_get_group(cli_mgr_t *cm, uint32_t groupid)
+{
+    uint32_t key;
+    group_info_t *group;
+    struct hlist_node *tmp;
+
+    key = hash_32(groupid, HASH_USER_SHIFT);
+
+    hlist_for_each_entry(group, tmp, &cm->group_map[key], hentry) {
+        if(group->groupid == groupid) {
+            return group;
+        }
+    }
+
+    return NULL;
+}
+
+static group_info_t *cli_mgr_get_group(cli_mgr_t *cm, uint32_t groupid)
+{
+    group_info_t *group;
+
+    pthread_mutex_lock(&cm->lock);
+    group = __cli_mgr_get_group(cm, groupid);
+    pthread_mutex_unlock(&cm->lock);
+
+    return group;
 }
 
 static group_info_t *cli_mgr_del_group(cli_mgr_t *cm, uint32_t groupid)
@@ -124,29 +185,19 @@ static group_info_t *cli_mgr_del_group(cli_mgr_t *cm, uint32_t groupid)
     group_info_t *group;
 
     pthread_mutex_lock(&cm->lock);
-    group = hashmapRemove(cm->group_map, (void *)groupid);
-    if(!group) {
-        pthread_mutex_unlock(&cm->lock);
-        return NULL;
-    }
 
+    group = __cli_mgr_get_group(cm, groupid);
+    if(!group)
+        goto out;
+
+    hlist_del_init(&group->hentry);
     cm->group_count--;
-    pthread_mutex_unlock(&cm->lock);
 
+out:
+    pthread_mutex_unlock(&cm->lock);
     return group;
 }
 
-#if 0
-static user_info_t *cli_mgr_get_group(uint32_t groupid)
-{
-    user_info_t *user;
-
-    pthread_mutex_lock(&cm->lock);
-    user = hashmapGet(cm->user_map, (void*)userid);
-    pthread_mutex_unlock(&cm->lock);
-    return user;
-}
-#endif
 
 static void login_result_response(cli_mgr_t *cm, 
         user_info_t *uinfo, struct sockaddr *to)
@@ -246,7 +297,7 @@ static int cmd_create_group_handle(cli_mgr_t *cm, struct pack_creat_group *pr)
 
     ginfo->groupid = cli_mgr_alloc_gid(cm);
     ginfo->flags = pr->flags;
-    list_init(&ginfo->userlist);
+    INIT_LIST_HEAD(&ginfo->userlist);
 
     strncpy(ginfo->name, (char *)pr->name, GROUP_NAME_MAX);
 
@@ -254,7 +305,7 @@ static int cmd_create_group_handle(cli_mgr_t *cm, struct pack_creat_group *pr)
         strncpy(ginfo->passwd, (char *)pr->passwd, GROUP_PASSWD_MAX);
 
     creater->group = ginfo;
-    list_add_tail(&ginfo->userlist, &creater->node);
+    list_add_tail(&creater->entry, &ginfo->userlist);
     ginfo->users++;
 
     ginfo->turn_handle = turn_task_assign(cm->node_mgr, ginfo);
@@ -288,9 +339,11 @@ static void group_delete_notify(cli_mgr_t *cm, user_info_t *user)
 static int cmd_delete_group_handle(cli_mgr_t *cm, struct pack_del_group *pr)
 {
     int ret;
-    user_info_t *creater, *user;
     group_info_t *ginfo;
+    user_info_t *user;
+
 #if 0
+    user_info_t *creater;
     /* Permission check */
     creater = node_to_item(ginfo->userlist.next, user_info_t, node);
     if(creater->userid != pr->userid) {
@@ -300,7 +353,7 @@ static int cmd_delete_group_handle(cli_mgr_t *cm, struct pack_del_group *pr)
 
     ginfo = cli_mgr_del_group(cm, pr->groupid);
 
-    list_for_each_entry(user, &ginfo->userlist, node) {
+    list_for_each_entry(user, &ginfo->userlist, entry) {
         if(pr->userid == user->userid)
             continue;
 
@@ -317,75 +370,52 @@ static int cmd_delete_group_handle(cli_mgr_t *cm, struct pack_del_group *pr)
 }
 
 #define RESULT_MAX_LEN 	 	(4000)
-struct group_list_tmp {
-    int pos;
-    int count;
-
-    int curr_pos;
-    int offset;
-    int rescount;
-    uint8_t *data;
-};
-
-/* FIXME: tmp */
-static bool hash_entry_cb(void* key, void* value, void* context)
-{
-    group_desc_t *group;
-    group_info_t *ginfo = (group_info_t *)value;
-    struct group_list_tmp *rtmp = (struct group_list_tmp *)context;
-
-    if(rtmp->curr_pos++ < rtmp->pos) {
-        return true;
-    }
-
-    if(rtmp->rescount >= rtmp->count) {
-        return false; /* submit */
-    }
-
-    if(rtmp->offset + sizeof(group_desc_t) >= RESULT_MAX_LEN) {
-        return false; /* submit */
-    }
-
-    group = (group_desc_t *)(rtmp->data + rtmp->offset);
-    group->groupid = ginfo->groupid;
-    group->flags = ginfo->flags;
-    group->namelen = strlen(ginfo->name);
-
-    if(RESULT_MAX_LEN - rtmp->offset < strlen(ginfo->name)) {
-        return false; /*no more space */
-    }
-
-    strncpy(group->name, ginfo->name, GROUP_NAME_MAX);
-    rtmp->offset += (sizeof(group_desc_t) + group->namelen);
-    rtmp->rescount++;
-
-    return true;
-}
-
 
 static int cmd_list_group_handle(cli_mgr_t *cm, struct pack_list_group *pr)
 {
+    int i;
+    int index;
     user_info_t *uinfo;
-    struct group_list_tmp rtmp;
+    group_info_t *group;
+    group_desc_t *gdest;
+    struct hlist_node *tmp;
+    uint8_t *data;
+    int offset = 0;
+    int rescount = 0;
+
+    data = client_pkt_alloc(cm);
 
     logd("list group request from user:%u.\n", pr->userid);
-    uinfo = hashmapGet(cm->user_map, (void*)pr->userid);
+    uinfo = cli_mgr_get_user(cm, pr->userid);
     if(!uinfo)
         return -EINVAL;
 
     logd("list group. pos:%d, count:%d.\n", pr->pos, pr->count);
 
-    rtmp.pos = pr->pos;
-    rtmp.count = pr->count;
+    for(i=0; i<HASH_GROUP_CAPACITY; i++) {
+        hlist_for_each_entry(group, tmp, &cm->group_map[i], hentry) {
+            if(index++ < pr->pos)
+                continue;
 
-    rtmp.curr_pos = 0;
-    rtmp.offset = 0;
-    rtmp.rescount = 0;
-    rtmp.data = client_pkt_alloc(cm);
+            if(rescount >= pr->count) {
+                break;
+            }
+            if(offset + sizeof(group_desc_t) + strlen(group->name) >= RESULT_MAX_LEN) {
+                break; /* submit */
+            }
 
-    hashmapForEach(cm->group_map, hash_entry_cb, &rtmp);
+            gdest = (group_desc_t *)(data + offset);
+            gdest->groupid = group->groupid;
+            gdest->flags = group->flags;
+            gdest->namelen = strlen(group->name);
 
-    client_pkt_sendto(cm, MSG_LIST_GROUP_RESPONSE, rtmp.data, rtmp.offset, &uinfo->addr);
+            strncpy(gdest->name, group->name, GROUP_NAME_MAX);
+            offset += (sizeof(group_desc_t) + gdest->namelen);
+            rescount++;
+        }
+    }
+
+    client_pkt_sendto(cm, MSG_LIST_GROUP_RESPONSE, data, offset, &uinfo->addr);
     return 0;
 }
 
@@ -412,16 +442,16 @@ static int cmd_join_group_handle(cli_mgr_t *cm, struct pack_join_group *pr)
 
     logd("join group request from user:%u, group:%u", pr->userid, pr->groupid);
 
-    uinfo = hashmapGet(cm->user_map, (void*)pr->userid);
+    uinfo = cli_mgr_get_user(cm, pr->userid);
     if(!uinfo)
         return -EINVAL;
 
-    ginfo = hashmapGet(cm->group_map, (void*)pr->groupid);
+    ginfo = cli_mgr_get_group(cm, pr->groupid);
     if(!ginfo)
         return -EINVAL;
 
     uinfo->group = ginfo;
-    list_add_tail(&ginfo->userlist, &uinfo->node);
+    list_add_tail(&uinfo->entry, &ginfo->userlist);
     ginfo->users++;
 
     turn_task_user_join(cm->node_mgr, ginfo->turn_handle, uinfo);
@@ -436,7 +466,7 @@ static int cmd_leave_group_handle(cli_mgr_t *cm, struct pack_leave_group *pr)
     user_info_t *uinfo;
     group_info_t *ginfo;
 
-    uinfo = hashmapGet(cm->user_map, (void*)pr->userid);
+    uinfo = cli_mgr_get_user(cm, pr->userid);
     if(!uinfo)
         return -EINVAL;
 
@@ -445,7 +475,7 @@ static int cmd_leave_group_handle(cli_mgr_t *cm, struct pack_leave_group *pr)
         return -EINVAL;
 
     ginfo->users--;
-    list_remove(&uinfo->node);
+    list_del(&uinfo->entry);
 
     turn_task_user_leave(cm->node_mgr, ginfo->turn_handle, uinfo);
 
@@ -456,7 +486,7 @@ static int cmd_hbeat_handle(cli_mgr_t *cm, uint32_t userid)
 {
     user_info_t *uinfo;
 
-    uinfo = hashmapGet(cm->user_map, (void*)userid);
+    uinfo = cli_mgr_get_user(cm, userid);
     if(!uinfo)
         return -EINVAL;
 
@@ -484,8 +514,8 @@ static void cli_mgr_handle(void *opaque, uint8_t *data, int len, void *from)
 
     logd("pack: type:%d, seq:%d, datalen:%d\n", head->type, head->seqnum, head->datalen);
 
-    if(head->magic != SERV_MAGIC ||
-            head->version != SERV_VERSION)
+    if(head->magic != PROTOS_MAGIC ||
+            head->version != PROTOS_VERSION)
         return;
 
     if(head->type == MSG_CLI_ACK) {
@@ -545,11 +575,9 @@ static void cli_mgr_close(void *opaque)
 
 #define ID_FRIST_NUM 	(1)
 
-#define HASH_USER_CAPACITY 			(1024)
-#define HASH_GROUP_CAPACITY 		(256)
-
 cli_mgr_t *cli_mgr_init(node_mgr_t *nodemgr) 
 {
+    int i;
     int clifd;
     cli_mgr_t *cm;
 
@@ -566,9 +594,15 @@ cli_mgr_t *cli_mgr_init(node_mgr_t *nodemgr)
     cm->node_mgr = nodemgr;
 
     clifd = create_cli_mgr_channel();
-    cm->hand = ioasync_udp_create(clifd, cli_mgr_handle, cli_mgr_close, cm);
-    cm->user_map = hashmapCreate(HASH_USER_CAPACITY, int_hash, int_equals);
-    cm->group_map = hashmapCreate(HASH_GROUP_CAPACITY, int_hash, int_equals);
+    cm->hand = iohandler_udp_create(get_global_ioasync(), clifd, 
+            cli_mgr_handle, cli_mgr_close, cm);
+
+    for (i = 0; i < HASH_USER_CAPACITY; i++)
+        INIT_HLIST_HEAD(&cm->user_map[i]);
+
+    for (i = 0; i < HASH_GROUP_CAPACITY; i++)
+        INIT_HLIST_HEAD(&cm->group_map[i]);
+
     hbeat_god_init(&cm->hbeat_god, client_user_dead);
 
     pthread_mutex_init(&cm->lock, NULL);

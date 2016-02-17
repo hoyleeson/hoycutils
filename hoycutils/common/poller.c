@@ -183,7 +183,8 @@ static void poller_add(struct poller* l, int fd, event_func  func, void*  data)
     ev.data.ptr = hook;
     epoll_ctl(l->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
 
-    l->num_fds += 1;
+    if(!l->num_fds++)
+        wake_up(&l->wq);
 }
 
 /* unregister a file descriptor and its event handler
@@ -287,6 +288,8 @@ static int poller_exec(struct poller* l) {
     int  n, count;
     struct event_hook* hook;
 
+    wait_event(l->wq, l->num_fds != 0);
+
     do {
         count = epoll_wait(l->epoll_fd, l->events, l->num_fds, -1);
     } while (count < 0 && errno == EINTR);
@@ -331,7 +334,7 @@ static int poller_exec(struct poller* l) {
         }
 
         hook[0]     = l->hooks[l->num_fds-1];
-        l->num_fds -= 1;
+        l->num_fds--;
         ev.events   = hook->wanted;
         ev.data.ptr = hook;
         epoll_ctl(l->epoll_fd, EPOLL_CTL_MOD, hook->fd, &ev);
@@ -383,7 +386,7 @@ int poller_init(struct poller *l)
     l->hooks    = NULL;
 
     pthread_mutex_init(&l->lock, NULL);
-
+    init_waitqueue_head(&l->wq);
     ret = socketpair(AF_UNIX, SOCK_DGRAM, 0, l->ctl_socks);
     if (ret < 0) {
         loge("Error in socketpair(). errno:%d", errno);

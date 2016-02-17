@@ -32,5 +32,6 @@ void log_printf(int level, const char *tag, const char *fmt, ...)
     va_end(ap);
 
     printf("%s", buf);
+    fflush(stdout);
 }
 

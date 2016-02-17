@@ -3,12 +3,12 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include <common/log.h>
-#include <common/pack.h>
+#include <common/packet.h>
+#include <common/pack_head.h>
 #include <common/sockets.h>
-#include <common/wait.h>
-#include <arpa/inet.h>
 
 #include "node_mgr.h"
 #include "task.h"
@@ -17,7 +17,7 @@ static int node_register(node_mgr_t *mgr, node_info_t *node)
 {
     logd("node server register success.\n");
     pthread_mutex_lock(&mgr->lock);
-    list_add_tail(&mgr->nodelist, &node->node);
+    list_add_tail(&node->entry, &mgr->nodelist);
     mgr->node_count++;
     pthread_mutex_unlock(&mgr->lock);
     return 0;
@@ -27,34 +27,34 @@ static void node_unregister(node_mgr_t *mgr, node_info_t *node)
 {
     logd("node server unregister success.\n");
     pthread_mutex_lock(&mgr->lock);
-    list_remove(&node->node);
+    list_del(&node->entry);
     mgr->node_count--;
     pthread_mutex_unlock(&mgr->lock);
 }
 
 static void *nodemgr_task_pkt_alloc(node_info_t *node)
 {
-    packet_t *packet;
-    packet = ioasync_pkt_alloc(node->hand);
+    pack_buf_t *pkb;
+    pkb = iohandler_pack_buf_alloc(node->hand);
 
-    return packet->data + pack_head_len();
+    return pkb->data + pack_head_len();
 
 }
 
 static void nodemgr_task_pkt_send(node_info_t *node, int type, void *data, int len)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
 
     head = (pack_head_t *)((uint8_t *)data - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_pack_buf(head);
 
     init_pack(head, type, len);
     head->seqnum = node->nextseq++;
 
-    packet->len = len + pack_head_len();
+    pkb->len = len + pack_head_len();
 
-    ioasync_pkt_send(node->hand, packet);
+    iohandler_pkt_send(node->hand, pkb);
 }
 
 #if 0
@@ -82,8 +82,8 @@ static void node_hand_fn(void* opaque, uint8_t *data, int len)
 
     logd("pack: type:%d, seq:%d, datalen:%d\n", head->type, head->seqnum, head->datalen);
 
-    if(head->magic != SERV_MAGIC ||
-            head->version != SERV_VERSION)
+    if(head->magic != PROTOS_MAGIC ||
+            head->version != PROTOS_VERSION)
         return;
 
     switch(head->type) {
@@ -138,7 +138,7 @@ static node_info_t *nodemgr_choice_node(node_mgr_t *mgr, int priority)
 {
     node_info_t *p, *node = NULL;
 
-    list_for_each_entry(p, &mgr->nodelist, node) {
+    list_for_each_entry(p, &mgr->nodelist, entry) {
         if(node_weight_compare(node, p)) {
             node = p;
         }
@@ -176,7 +176,7 @@ static void node_register_task(node_info_t *node, task_handle_t *task)
 
     node->task_count++;
     node->priority = calc_node_priority(node->priority, task->priority);
-    list_add_tail(&node->tasklist, &task->n);
+    list_add_tail(&task->entry, &node->tasklist);
 
     pthread_mutex_unlock(&node->lock);
 }
@@ -188,7 +188,7 @@ static void node_unregister_task(node_info_t *node, task_handle_t *task)
 
     node->task_count--;
     node->priority = calc_node_priority(node->priority, -task->priority);
-    list_remove(&task->n);
+    list_del(&task->entry);
 
     pthread_mutex_unlock(&node->lock);
 }
@@ -333,10 +333,12 @@ static void nodemgr_accept_fn(void* user, int acceptfd)
 
     node->fd = acceptfd;
     node->mgr = mgr;
-    node->hand = ioasync_create(acceptfd, node_hand_fn, node_close_fn, node);
+    node->hand = iohandler_create(get_global_ioasync(), acceptfd,
+            node_hand_fn, node_close_fn, node);
+
     node->nextseq = 0;
     node->task_count = 0;
-    list_init(&node->tasklist);
+    INIT_LIST_HEAD(&node->tasklist);
 
     addrlen = sizeof(node->addr);
     if (getsockname(acceptfd, (struct sockaddr*)&node->addr, &addrlen) < 0) {
@@ -344,7 +346,7 @@ static void nodemgr_accept_fn(void* user, int acceptfd)
         goto fail;
     }
 
-    response_wait_init(&node->waits, HASH_WAIT_OBJ_DEFAULT_CAPACITY);
+    iowait_init(&node->waits);
     node_register(mgr, node);
     return;
 
@@ -368,8 +370,10 @@ node_mgr_t *node_mgr_init(void)
         return NULL;
 
     sock = socket_inaddr_any_server(NODE_SERV_LOGIN_PORT, SOCK_STREAM);
-    nodemgr->hand = ioasync_accept_create(sock, nodemgr_accept_fn, nodemgr_close_fn, nodemgr);
-    list_init(&nodemgr->nodelist);
+    nodemgr->hand = iohandler_accept_create(get_global_ioasync(), sock,
+            nodemgr_accept_fn, nodemgr_close_fn, nodemgr);
+
+    INIT_LIST_HEAD(&nodemgr->nodelist);
     pthread_mutex_init(&nodemgr->lock, NULL);
 
     return nodemgr;

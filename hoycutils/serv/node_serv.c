@@ -8,19 +8,24 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <common/iohandler.h>
-#include <common/hashmap.h>
+#include <common/ioasync.h>
 #include <common/list.h>
 #include <common/wait.h>
 #include <common/sockets.h>
 #include <common/log.h>
-#include <common/pack.h>
+#include <common/utils.h>
+#include <common/hash.h>
+#include <common/packet.h>
+#include <common/pack_head.h>
 
 #include "task.h"
 #include "serv.h"
 
-#define HASH_WORKER_CAPACITY 	(256)
 #define WORKER_MAX_TASK_COUNT 	(512)
+
+#define HASH_WORKER_SHIFT 	    (5)
+#define HASH_WORKER_CAPACITY 	(1 << HASH_WORKER_SHIFT)
+#define HASH_WORKER_MASK 		(HASH_WORKER_CAPACITY - 1)
 
 struct _node_serv;
 typedef struct _node_serv  node_serv_t;
@@ -29,9 +34,9 @@ typedef struct _node_serv  node_serv_t;
 /* ns: node server */
 
 struct _node_serv {
-    ioasync_t *mgr_hand;
+    iohandler_t *mgr_hand;
     int worker_count;
-    struct listnode worker_list;
+    struct list_head worker_list;
     int nextseq;
 
     int task_count;
@@ -40,16 +45,17 @@ struct _node_serv {
 };
 
 struct _task_worker {
-    ioasync_t *hand;
+    ioasync_t *ioasync;
+    iohandler_t *hand;
     int nextseq;
     struct sockaddr addr;
 
     int task_count;
-    struct Hashmap *tasks_map; 	/*key: task id*/
+    struct hlist_head tasks_map[HASH_WORKER_CAPACITY]; 	/*key: task id*/
     pthread_mutex_t lock;
 
     node_serv_t *owner;
-    struct listnode node;
+    struct list_head entry;
 };
 
 
@@ -77,8 +83,8 @@ static task_t *find_node_serv_task(node_serv_t *ns, int taskid)
     task_worker_t *worker;
 
     pthread_mutex_lock(&ns->lock);
-    list_for_each_entry(worker, &ns->worker_list, node) {
-        task = hashmapGet(worker->tasks_map, (void *)taskid);
+    list_for_each_entry(worker, &ns->worker_list, entry) {
+        task = worker_get_task_by_id(worker, taskid);
         if(task) {
             pthread_mutex_unlock(&ns->lock);
             return task;
@@ -93,56 +99,78 @@ static task_t *find_node_serv_task(node_serv_t *ns, int taskid)
 void *task_worker_pkt_alloc(task_t *task)
 {
     task_worker_t *worker = task->worker;
-    packet_t *packet;
+    pack_buf_t *pkb;
 
-    packet = ioasync_pkt_alloc(worker->hand);
+    pkb = iohandler_pack_buf_alloc(worker->hand);
 
-    return packet->data + pack_head_len();
+    return pkb->data + pack_head_len();
+}
 
+void *task_worker_pkt_get(task_t *task, void *data)
+{
+    pack_buf_t *pkb;
+    pack_head_t *head;
+
+    head = (pack_head_t *)((uint8_t *)data - pack_head_len());
+    pkb = data_to_pack_buf(head);
+    pack_buf_get(pkb);
+
+    return data;
+}
+
+void task_worker_pkt_free(task_t *task, void *data)
+{
+    pack_buf_t *pkb;
+    pack_head_t *head;
+
+    head = (pack_head_t *)((uint8_t *)data - pack_head_len());
+    pkb = data_to_pack_buf(head);
+    pack_buf_free(pkb);
 }
 
 
 void task_worker_pkt_sendto(task_t *task, int type, 
         void *data, int len, struct sockaddr *to)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
     task_worker_t *worker = task->worker;
 
     head = (pack_head_t *)((uint8_t *)data - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_pack_buf(head);
 
     init_pack(head, type, len);
     head->seqnum = worker->nextseq++;
 
-    packet->len = len + pack_head_len();
-//    packet->addr = *to;
+    pkb->len = len + pack_head_len();
+//    pkb->addr = *to;
 
     dump_data("task worker send data", data, len);
 
-    ioasync_pkt_sendto(worker->hand, packet, to);
+    iohandler_pkt_sendto(worker->hand, pkb, to);
 }
 
-
+#if 0
 void task_worker_pkt_multicast(task_t *task, int type, 
         void *data, int len, struct sockaddr *dst_ptr, int count)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
     task_worker_t *worker = task->worker;
 
     head = (pack_head_t *)((uint8_t *)data - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_packet(head);
 
     init_pack(head, type, len);
     head->seqnum = worker->nextseq++;
 
-    packet->len = len + pack_head_len();
+    pkb->len = len + pack_head_len();
 
     dump_data("task worker multicast data", data, len);
 
-    ioasync_pkt_multicast(worker->hand, packet, dst_ptr, count);
+    ioasync_pkt_multicast(worker->hand, pkb, dst_ptr, count);
 }
+#endif
 
 
 /*XXX*/
@@ -184,8 +212,8 @@ static void task_worker_handle(void *opaque, uint8_t *data, int len, void *from)
 
     logd("pack: type:%d, seq:%d, datalen:%d\n", head->type, head->seqnum, head->datalen);
 
-    if(head->magic != SERV_MAGIC ||
-            head->version != SERV_VERSION)
+    if(head->magic != PROTOS_MAGIC ||
+            head->version != PROTOS_VERSION)
         return;
 
     switch(head->type) {
@@ -214,6 +242,7 @@ static void task_worker_close(void *opaque)
 #define DEFAULT_BUF_SIZE        (128*1024*1024)
 static task_worker_t *create_task_worker(node_serv_t *ns)
 {
+    int i;
     int sock;
     struct sockaddr_in addr;
     socklen_t addrlen;
@@ -250,13 +279,17 @@ static task_worker_t *create_task_worker(node_serv_t *ns)
     tworker->task_count = 0;
     tworker->owner = ns;
 
-    tworker->hand = ioasync_udp_create_exclusive(sock, task_worker_handle,
-            task_worker_close, tworker);
-    tworker->tasks_map = hashmapCreate(HASH_WORKER_CAPACITY, int_hash, int_equals);
+    tworker->ioasync = ioasync_init();
+    tworker->hand = iohandler_udp_create(tworker->ioasync, sock,
+            task_worker_handle, task_worker_close, tworker);
+
+    for (i = 0; i < HASH_WORKER_CAPACITY; i++)
+        INIT_HLIST_HEAD(&tworker->tasks_map[i]);
+
     tworker->nextseq = 0;
     pthread_mutex_init(&tworker->lock, NULL);
 
-    list_add_tail(&ns->worker_list, &tworker->node);
+    list_add_tail(&tworker->entry, &ns->worker_list);
     ns->worker_count++;
 out:
     return tworker;
@@ -266,39 +299,41 @@ static void free_task_worker(task_worker_t *worker)
 {
     node_serv_t *ns = worker->owner;
 
-    list_remove(&worker->node);
+    list_del(&worker->entry);
     ns->worker_count--;
 
     if(ns->suit_worker == worker)
         ns->suit_worker = NULL;
 
+    iohandler_shutdown(worker->hand);
+    ioasync_release(worker->ioasync);
     free(worker);
 }
 
 static void *node_serv_pkt_alloc(node_serv_t *ns)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
 
-    packet = ioasync_pkt_alloc(ns->mgr_hand);
+    pkb = iohandler_pack_buf_alloc(ns->mgr_hand);
 
-    return packet->data + pack_head_len();
+    return pkb->data + pack_head_len();
 
 }
 
 static void node_serv_pkt_send(node_serv_t *ns, int type, void *data, int len)
 {
-    packet_t *packet;
+    pack_buf_t *pkb;
     pack_head_t *head;
 
     head = (pack_head_t *)((uint8_t *)data - pack_head_len());
-    packet = data_to_packet(head);
+    pkb = data_to_pack_buf(head);
 
     init_pack(head, type, len);
     head->seqnum = ns->nextseq++;
 
-    packet->len = len + pack_head_len();
+    pkb->len = len + pack_head_len();
 
-    ioasync_pkt_send(ns->mgr_hand, packet);
+    iohandler_pkt_send(ns->mgr_hand, pkb);
 }
 
 
@@ -375,12 +410,16 @@ static int task_assign_response(node_serv_t *ns, task_t *task)
 
 static void worker_add_task(task_worker_t *worker, task_t *task)
 {
+    uint32_t key;
+
+    key = hash_32(task->taskid, HASH_WORKER_SHIFT);
+
     pthread_mutex_lock(&worker->lock);
     worker->task_count++;
     task->worker = worker;
 
     logd("worker add task. taskid:%d\n", task->taskid);
-    hashmapPut(worker->tasks_map, (void*)task->taskid, task);
+    hlist_add_head(&task->hentry, &worker->tasks_map[key]);
 
     pthread_mutex_unlock(&worker->lock);
 }
@@ -388,18 +427,22 @@ static void worker_add_task(task_worker_t *worker, task_t *task)
 static task_t *worker_get_task_by_id(task_worker_t *worker, uint32_t taskid)
 {
     task_t *task;
+    uint32_t key;
+    struct hlist_node *tmp;
+
+    key = hash_32(taskid, HASH_WORKER_SHIFT);
 
     pthread_mutex_lock(&worker->lock);
 
-    task = hashmapGet(worker->tasks_map, (void *)taskid);
-    if(!task) {
-        loge("not found task by taskid:%d.\n", taskid);
-        pthread_mutex_unlock(&worker->lock);
-        return NULL;
+    hlist_for_each_entry(task, tmp, &worker->tasks_map[key], hentry) {
+        if(task->taskid == taskid) {
+            pthread_mutex_unlock(&worker->lock);
+            return task;
+        }
     }
 
     pthread_mutex_unlock(&worker->lock);
-    return task;
+    return NULL;
 }
 
 
@@ -407,7 +450,7 @@ static void worker_remove_task(task_worker_t *worker, task_t *task)
 {
     pthread_mutex_lock(&worker->lock);
 
-    hashmapRemove(worker->tasks_map, (void *)task->taskid);
+    hlist_del_init(&task->hentry);
     worker->task_count--;
 
     /*XXX*/
@@ -429,7 +472,7 @@ static int node_serv_task_register(node_serv_t *ns, task_t *task)
         goto found;
 
     /* slow path */
-    list_for_each_entry(pos, &ns->worker_list, node) {
+    list_for_each_entry(pos, &ns->worker_list, entry) {
         if(count < pos->task_count) {
             count = pos->task_count;
             worker = pos;
@@ -489,8 +532,8 @@ static void node_serv_handle(void *opaque, uint8_t *data, int len)
 
     logd("pack: type:%d, seq:%d, datalen:%d\n", head->type, head->seqnum, head->datalen);
 
-    if(head->magic != SERV_MAGIC ||
-            head->version != SERV_VERSION)
+    if(head->magic != PROTOS_MAGIC ||
+            head->version != PROTOS_VERSION)
         return;
 
     switch(head->type) {
@@ -548,11 +591,13 @@ int node_serv_init(const char *host)
         return -EINVAL;
     }
 
-    ns->mgr_hand = ioasync_create(socket, node_serv_handle, node_serv_close, ns);
+    ns->mgr_hand = iohandler_create(get_global_ioasync(), socket,
+            node_serv_handle, node_serv_close, ns);
+
     ns->task_count = 0;
     ns->nextseq = 0;
     ns->worker_count = 0;
-    list_init(&ns->worker_list);
+    INIT_LIST_HEAD(&ns->worker_list);
     ns->suit_worker = NULL;
     pthread_mutex_init(&ns->lock, NULL);
 

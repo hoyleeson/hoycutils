@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define PROTOS_MAGIC        (0x2016)	
+#define PROTOS_VERSION      (1)
+
 typedef struct _pack_header {
     uint16_t magic;
     uint8_t version;

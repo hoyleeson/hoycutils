@@ -14,7 +14,7 @@
  * them can use shifts and additions instead of multiplications for
  * machines where multiplications are slow.
  */
-
+#include <common/types.h>
 #include <asm/types.h>
 
 /* 2^31 + 2^29 - 2^25 + 2^22 - 2^19 - 2^16 + 1 */

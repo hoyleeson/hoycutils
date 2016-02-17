@@ -1,8 +1,7 @@
 #include <stdlib.h>
 
-#include <common/pack_head.h>
-#include <protos.h>
 #include <common/log.h>
+#include <common/pack_head.h>
 
 
 pack_head_t *create_pack(uint8_t type, uint32_t len)

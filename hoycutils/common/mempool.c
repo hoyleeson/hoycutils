@@ -192,7 +192,7 @@ struct cache_sizes {
 
 static struct cache_sizes cachesizes[] = {
 #define CACHE(x, n)  { .cs_size = (x), .cs_count = (n) },
-#include "memsizes.h"
+#include <common/memsizes.h>
     CACHE(ULONG_MAX, 0)
 #undef CACHE
 };

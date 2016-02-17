@@ -1,8 +1,11 @@
 #ifndef _COMMON_MEMPOOL_H_
 #define _COMMON_MEMPOOL_H_
 
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <pthread.h>
+
 #include <common/list.h>
 
 typedef struct mempool mempool_t;
@@ -60,7 +63,6 @@ static inline void mm_free(void *ptr)
 {
 	return __mm_free(ptr, -1);
 }
-
 
 #endif
 

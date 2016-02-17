@@ -50,6 +50,7 @@ static inline int waitqueue_active(wait_queue_head_t *q)
 	return !list_empty(&q->task_list);
 }
 
+void init_waitqueue_head(wait_queue_head_t *q);
 
 extern void add_wait_queue(wait_queue_head_t *q, wait_queue_t *wait);
 extern void add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t *wait);
@@ -106,7 +107,7 @@ do {									\
 		prepare_to_wait(&wq, &__wait);	\
 		if (condition)					\
 			break;						\
-		wait_for_completion();			\
+		wait_for_completion(&__wait.done);			\
 	}								\
 	finish_wait(&wq, &__wait);			\
 } while (0)
@@ -177,7 +178,7 @@ do {									\
 		prepare_to_wait_exclusive(&wq, &__wait);	\
 		if (condition)					\
 			break;						\
-		wait_for_completion();			\
+		wait_for_completion(&__wait.done);			\
 	}								\
 	finish_wait(&wq, &__wait);			\
 } while (0)
