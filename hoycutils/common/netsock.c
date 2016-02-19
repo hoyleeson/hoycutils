@@ -65,7 +65,7 @@ int netsock_recv(void* handle, _out void* buf, int len)
 	struct netsock* nsock;
 
 	if(!handle)
-		return -1;
+		return -EINVAL;
 
 	nsock = (struct netsock*)handle;
 
@@ -97,7 +97,7 @@ int netsock_recv_timeout(void* handle, _out void* buf, int len, unsigned long ti
 	struct netsock* nsock;
 
 	if(!handle)
-		return -1;
+		return -EINVAL;
 
 	nsock = (struct netsock*)handle;
 	
@@ -128,7 +128,7 @@ int netsock_send(void* handle, void* buf, int len)
 	struct netsock* nsock;
 
 	if(!handle)
-		return -1;
+		return -EINVAL;
 
 	nsock = (struct netsock*)handle;
 	
@@ -148,7 +148,7 @@ int netsock_serv_send(void* handle, void* session, void* buf, int len)
 	struct netsock* nsock;
 
 	if((!handle) || (!session))
-		return -1;
+		return -EINVAL;
 
 	nsock = (struct netsock*)handle;
 	
@@ -175,7 +175,7 @@ int netsock_reinit(void* handle, struct netsock_args* args)
 
 	if(!handle || !args) {
 		loge("please input the correct parameters.\n");
-		return -1;
+		return -EINVAL;
 	}
     
 	nsock = (struct netsock*)handle;

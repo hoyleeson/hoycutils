@@ -1,36 +1,31 @@
 #ifndef _COMMON_NETSOCK_H_
 #define _COMMON_NETSOCK_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <arpa/inet.h>
 #include <stdint.h>
 #include <pthread.h>
 
 #include <common/types.h>
 
-#define CURRECT_ETH	"eth0"
 
-/*if use callback way to get receive data, open this macro*/
-//#define RECV_USE_CALLBACK	
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*socket connection type*/
 enum netsock_type {
-	NETSOCK_STREAM,		/*socket type is tcp*/
-	NETSOCK_DGRAM,		/*socket type is udp*/
+	NETSOCK_STREAM,		/* socket type is tcp */
+	NETSOCK_DGRAM,		/* socket type is udp */
 	NETSOCK_MAX,
 };
 
 /*connection session unit*/
 struct connection {
-	int sock_fd;
-	struct sockaddr_in sock_addr;
+    int sock;       /* used for tcp */
+	struct sockaddr_in sock_addr;   /* used for udp */
 };
 
 
-#ifdef RECV_USE_CALLBACK
 /*use for the error callback function*/
 enum err_code {
 	E_SOCKRECV,
@@ -53,7 +48,6 @@ struct net_packet {
 
 typedef int (*recv_callback)(struct net_packet* pack);	//receive data callback
 typedef void (*err_callback)(int err_code);		//error callback.
-#endif
 
 
 struct netsock_args {
@@ -63,41 +57,21 @@ struct netsock_args {
 	uint32_t dest_port;		//destination port
 	uint32_t listen_port;	//listen port
 
-#ifdef RECV_USE_CALLBACK
 	uint32_t buf_size;	//receive buffer size.
 	recv_callback recv_cb;
 	err_callback err_cb;
-#endif
-
 };
-
-#ifndef RECV_USE_CALLBACK
-
-#define SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, _listen_port)	{	\
-	_type,		\
-	_is_serv,	\
-	_dest_ip,	\
-	_dest_port,	\
-	_listen_port,	\
-}
-
-/*initilaize the socket argument structure.*/
-#define DECLARE_SOCKET_ARGS(_name, _type, _is_serv, _dest_ip, _dest_port, _listen_port)	\
-				struct netsock_args _name = \
-					SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, _listen_port)
-
-#else
 
 #define SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, \
 								_listen_port, _buf_size, _recv_cb, _err_cb)	{	\
-	_type,		\
-	_is_serv,	\
-	_dest_ip,	\
-	_dest_port,	\
-	_listen_port,	\
-	_buf_size,	\
-	_recv_cb,	\
-	_err_cb,	\
+    .type        = _type,		\
+    .is_server   = _is_serv,	\
+    .dest_ip     = _dest_ip,	\
+    .dest_port   = _dest_port,	\
+    .listen_port = _listen_port,	\
+    .buf_size    = _buf_size,	\
+    .recv_cb     = _recv_cb,	\
+    .err_cb      = _err_cb,	    \
 }
 
 #define DECLARE_SOCKET_ARGS(_name, _type, _is_serv, _dest_ip, _dest_port, \
@@ -105,7 +79,30 @@ struct netsock_args {
 				struct netsock_args _name = \
 					SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, _listen_port, _buf_size)
 
-#endif
+
+/*
+* network library interface data structure.
+*/
+struct netsock {
+	struct netsock_args args;
+	struct netsock_operations *netsock_ops;
+	void *private_data;
+	
+	pthread_mutex_t s_lock;
+	pthread_mutex_t r_lock;
+};
+
+/*
+* network library function interface.
+*/
+struct netsock_operations {
+	int (*init)(struct netsock *nsock);
+	void (*release)(struct netsock *nsock);
+	int (*send)(struct netsock *nsock, void *buf, int len);
+	int (*serv_send)(struct netsock *nsock, void *session, void *buf, int len);
+	int (*recv)(struct netsock *nsock, _out void *buf, int len);
+	int (*recv_timeout)(struct netsock *nsock, _out void *buf, int len, unsigned long timeout);
+};
 
 
 /*
@@ -177,37 +174,8 @@ int netsock_reinit(void* handle, struct netsock_args* args);
 void netsock_release(void* handle);
 
 
-#define AKSOCK_ACTIVE		1
-#define AKSOCK_INACTIVE 	0
-
-/*
-* network library interface data structure.
-*/
-struct netsock {
-	struct netsock_args args;
-	struct netsock_operations *netsock_ops;
-	void *private_data;
-	
-	pthread_mutex_t s_lock;
-	pthread_mutex_t r_lock;
-};
-
-/*
-* network library function interface.
-*/
-struct netsock_operations {
-	int (*init)(struct netsock *nsock);
-	void (*release)(struct netsock *nsock);
-	int (*send)(struct netsock *nsock, void *buf, int len);
-	int (*serv_send)(struct netsock *nsock, void *session, void *buf, int len);
-	int (*recv)(struct netsock *nsock, _out void *buf, int len);
-	int (*recv_timeout)(struct netsock *nsock, _out void *buf, int len, unsigned long timeout);
-	void (*listen)(struct netsock *nsock);
-
-};
-
-extern struct netsock_operations dgram_ops;
 extern struct netsock_operations stream_ops;
+extern struct netsock_operations dgram_ops;
 
 #ifdef __cplusplus
 } /* end extern "C" */
