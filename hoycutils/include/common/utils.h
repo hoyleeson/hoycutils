@@ -19,7 +19,6 @@ int fd_accept(int  fd);
 
 void *read_file(const char *fn, unsigned *_sz);
 time_t gettime(void);
-int get_ipaddr(const char* eth, char* ipaddr);
 
 #define  xnew(p)   do { (p) = xalloc(sizeof(*(p))); } while(0)
 #define  xznew(p)   do { (p) = xzalloc(sizeof(*(p))); } while(0)

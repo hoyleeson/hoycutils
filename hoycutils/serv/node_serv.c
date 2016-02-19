@@ -16,6 +16,7 @@
 #include <common/utils.h>
 #include <common/hash.h>
 #include <common/packet.h>
+#include <common/ethtools.h>
 #include <common/pack_head.h>
 
 #include "task.h"
