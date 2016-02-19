@@ -118,8 +118,8 @@ void *mempool_alloc(mempool_t *pool)
 }
 
 static inline bool is_dynamic_mem(mempool_t *pool, void *buf) {
-    return !(((buf - (void*)pool->buf) > 0) &&
-            ((((void*)pool->buf + pool->bsize*pool->init_count) - buf) >= 0));
+    return !(((buf - (void*)pool->buf) >= 0) &&
+            ((((void*)pool->buf + pool->bsize*pool->init_count) - buf) > 0));
 }
 
 static bool mempool_needed_shrink(mempool_t *pool) 

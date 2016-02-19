@@ -116,21 +116,36 @@ void iohandler_pack_buf_free(pack_buf_t *pkb)
 
 void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *pkb)
 {
+    int empty;
     struct iopacket *pack;
 
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = pkb;
+
+    empty = !queue_count(ioh->q_out);
     queue_in(ioh->q_out, (struct packet *)pack);
+    if(empty) {
+        ioasync_t *aio = ioh->owner;
+        poller_event_enable(&aio->poller, ioh->fd, EV_WRITE);
+    }
 }
 
 void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *pkb, struct sockaddr *to)
 {
+    int empty;
     struct iopacket *pack;
 
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = pkb;
     pack->addr = *to;
+
+    empty = !queue_count(ioh->q_out);
     queue_in(ioh->q_out, (struct packet *)pack);
+
+    if(empty) {
+        ioasync_t *aio = ioh->owner;
+        poller_event_enable(&aio->poller, ioh->fd, EV_WRITE);
+    }
 }
 
 void iohandler_send(iohandler_t *ioh, const uint8_t *data, int len)
