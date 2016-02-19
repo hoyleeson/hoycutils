@@ -193,6 +193,7 @@ static void iohandler_in_pack_queue(iohandler_t *ioh, struct iopacket *pack)
 {
     ioasync_t *aio = ioh->owner;
 
+    logv("iohandler receive data. packet queue.\n");
     queue_in(ioh->q_in, (struct packet *)pack);
 
     queue_work(aio->wq, &ioh->work);
@@ -298,6 +299,8 @@ static int iohandler_write(iohandler_t *ioh)
     pack = (struct iopacket *)queue_out(ioh->q_out);
     if(!pack)
         return 0;
+
+    logv("iohandler send data.\n");
 
     if(queue_count(ioh->q_out) == 0)
         poller_event_disable(&aio->poller, ioh->fd, EPOLLOUT);
