@@ -169,7 +169,7 @@ static void iohandler_in_handle_work(struct work_struct *work)
     pack = (struct iopacket *)queue_out(ioh->q_in);
 
     if(ioh->h_ops.post) 
-        ioh->h_ops.post(ioh->priv_data, pack);
+        ioh->h_ops.post(ioh, pack);
 
     iohandler_pack_free(ioh, pack, 1);
 }
