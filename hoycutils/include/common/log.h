@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define LOG_TAGS 	"hoycutils"
+#ifndef LOG_TAG
+#define LOG_TAG 	"hoycutils"
+#endif
 
 #ifndef ANDROID
 
@@ -22,7 +24,7 @@
 
 void log_printf(int level, const char *tag, const char *fmt, ...);
 
-#define LOG_PRINT(l, ...) 	log_printf(l, LOG_TAGS, __VA_ARGS__)
+#define LOG_PRINT(l, ...) 	log_printf(l, LOG_TAG, __VA_ARGS__)
 
 #define LOGV(...)   LOG_PRINT(LOG_VERBOSE, __VA_ARGS__)
 #define LOGD(...)   LOG_PRINT(LOG_DEBUG, __VA_ARGS__)

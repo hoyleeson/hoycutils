@@ -22,6 +22,8 @@
 #include "task.h"
 #include "serv.h"
 
+#define LOG_TAG     "node_serv"
+
 #define WORKER_MAX_TASK_COUNT 	(512)
 
 #define HASH_WORKER_SHIFT 	    (5)

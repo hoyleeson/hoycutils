@@ -111,7 +111,7 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
 struct workqueue_struct *alloc_workqueue(int max_active, unsigned int flags);
 
 #define create_workqueue()	    \
-    alloc_workqueue(1, 0)
+    alloc_workqueue(WQ_DFL_ACTIVE, 0)
 
 /*
  * Workqueue flags and constants.  For details, please refer to

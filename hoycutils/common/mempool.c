@@ -175,7 +175,7 @@ void mempool_free(mempool_t *pool, void *buf)
     pthread_mutex_lock(&pool->lock);
 
     if(is_dynamic_mem(pool, buf)) {
-        list_add(&b->free, &pool->dynamic_free_list);
+        list_add_tail(&b->free, &pool->dynamic_free_list);
         pool->dynamic_used--;
     } else {
         list_add_tail(&b->free, &pool->free_list);

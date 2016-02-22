@@ -178,6 +178,7 @@ static void iohandler_in_handle_work(struct work_struct *work)
    
     ioh = container_of(work, struct iohandler, work); 
 
+    logv("iohandler handle work.\n");
     if(queue_count(ioh->q_in) == 0)
         return;
 

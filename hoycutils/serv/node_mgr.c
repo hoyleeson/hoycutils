@@ -13,6 +13,8 @@
 #include "node_mgr.h"
 #include "task.h"
 
+#define LOG_TAG     "node_mgr"
+
 static int node_register(node_mgr_t *mgr, node_info_t *node)
 {
     logd("node server register success.\n");

@@ -445,6 +445,7 @@ int queue_work(struct workqueue_struct *wq, struct work_struct *work)
 
     BUG_ON(!list_empty(&work->entry));
 
+    printf("nr active:%d, max active:%d\n", wq->nr_active, wq->max_active);
     if (likely(wq->nr_active < wq->max_active)) {
         wq->nr_active++;
         worklist = gwq_determine_ins_pos(gwq, wq);
@@ -899,13 +900,14 @@ recheck:
         struct work_struct *work =
             list_first_entry(&gwq->worklist,
                     struct work_struct, entry);
+        struct workqueue_struct *wq = get_work_wq(work);
 
         bwh = busy_worker_head(gwq, work);
         hlist_add_head(&worker->hentry, bwh);
 
         worker->current_work = work;
         worker->current_func = work->func;
-        worker->current_wq = get_work_wq(work);
+        worker->current_wq = wq;
 
         list_del_init(&work->entry);
 
@@ -921,6 +923,7 @@ recheck:
         worker->current_func = NULL;
         worker->current_wq = NULL;
 
+        wq->nr_active--;
     } while (keep_working(gwq));
     worker_set_flags(worker, WORKER_PREP, false);
 
