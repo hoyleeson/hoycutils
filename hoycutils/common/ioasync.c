@@ -39,7 +39,6 @@ struct ioasync {
      */
     struct list_head closing_list;
     pthread_mutex_t lock;
-    struct workqueue_struct *wq;
 };
 
 
@@ -67,6 +66,7 @@ struct iohandler {
     struct handle_ops h_ops;
     void *priv_data;
 
+    struct workqueue_struct *wq;
     struct work_struct work;
     struct queue *q_in;
     struct queue *q_out;
@@ -179,25 +179,23 @@ static void iohandler_in_handle_work(struct work_struct *work)
     ioh = container_of(work, struct iohandler, work); 
 
     logv("iohandler handle work.\n");
-    if(queue_count(ioh->q_in) == 0)
-        return;
 
-    pack = (struct iopacket *)queue_out(ioh->q_in);
+    while(queue_count(ioh->q_in) > 0) {
+        pack = (struct iopacket *)queue_out(ioh->q_in);
 
-    if(ioh->h_ops.post) 
-        ioh->h_ops.post(ioh, pack);
+        if(ioh->h_ops.post) 
+            ioh->h_ops.post(ioh, pack);
 
-    iohandler_pack_free(ioh, pack, 1);
+        iohandler_pack_free(ioh, pack, 1);
+    }
 }
 
 static void iohandler_in_pack_queue(iohandler_t *ioh, struct iopacket *pack)
 {
-    ioasync_t *aio = ioh->owner;
-
     logv("iohandler receive data. packet queue.\n");
     queue_in(ioh->q_in, (struct packet *)pack);
 
-    queue_work(aio->wq, &ioh->work);
+    queue_work(ioh->wq, &ioh->work);
 }
 
 static int iohandler_read(iohandler_t* ioh)
@@ -399,6 +397,8 @@ static iohandler_t *ioasync_create_context(ioasync_t *aio, int fd, int type)
     ioh->closing = 0;
 
     /*XXX*/
+    ioh->wq = alloc_workqueue(0, WQ_CPU_INTENSIVE);
+
     ioh->q_in = queue_init(0);
     ioh->q_out = queue_init(0);
     ioh->owner = aio;
@@ -545,7 +545,6 @@ ioasync_t *ioasync_init(void)
     INIT_LIST_HEAD(&aio->closing_list);
 
     pthread_mutex_init(&aio->lock, NULL);
-    aio->wq = create_workqueue();
 
     ret = pthread_create(&thread, NULL, ioasync_handle, aio);
     if(ret) {

@@ -1,3 +1,5 @@
+#define LOG_TAG     "client"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -24,6 +26,7 @@
 #include <common/data_frag.h>
 
 #include "client.h"
+
 
 #define CLI_FRAGMENT_MAX_LEN 	(512)
 #define CLI_DATA_MAX_LEN        (4*1024*1024)

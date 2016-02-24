@@ -1,3 +1,5 @@
+#define LOG_TAG     "node_serv"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -21,8 +23,6 @@
 
 #include "task.h"
 #include "serv.h"
-
-#define LOG_TAG     "node_serv"
 
 #define WORKER_MAX_TASK_COUNT 	(512)
 

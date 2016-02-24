@@ -3,6 +3,7 @@
 
 #include <common/list.h>
 #include <common/timer.h>
+#include <common/fake_atomic.h>
 
 struct workqueue_struct;
 
@@ -35,7 +36,7 @@ enum {
 struct work_struct {
 	struct list_head entry;
 	work_func_t func;
-	unsigned long data;
+	fake_atomic_long_t data;
 };
 
 struct delayed_work {
@@ -81,7 +82,7 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
 
 #define INIT_WORK(_work, _func)                 \
     do {                                \
-        (_work)->data = 0;   \
+        fake_atomic_long_init(&(_work)->data, 0);   \
         INIT_LIST_HEAD(&(_work)->entry);            \
         PREPARE_WORK((_work), (_func));             \
     } while (0)
@@ -98,7 +99,7 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
  * @work: The work item in question
  */
 #define work_pending(work) \
-    (!!((work)->data & WORK_STRUCT_PENDING_BIT)) 
+    (!!(fake_atomic_long_get(&(work)->data) & WORK_STRUCT_PENDING_BIT)) 
 
 /**
  * delayed_work_pending - Find out whether a delayable work item is currently
@@ -108,10 +109,19 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
 #define delayed_work_pending(w) \
     work_pending(&(w)->work)
 
+
+/**
+ * work_clear_pending - for internal use only, mark a work item as not pending
+ * @work: The work item in question
+ */
+#define work_clear_pending(work) \
+    fake_clear_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))
+
+
 struct workqueue_struct *alloc_workqueue(int max_active, unsigned int flags);
 
 #define create_workqueue()	    \
-    alloc_workqueue(WQ_DFL_ACTIVE, 0)
+    alloc_workqueue(1, 0)
 
 /*
  * Workqueue flags and constants.  For details, please refer to

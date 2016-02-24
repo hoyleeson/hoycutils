@@ -158,7 +158,7 @@ static group_info_t *__cli_mgr_get_group(cli_mgr_t *cm, uint32_t groupid)
     group_info_t *group;
     struct hlist_node *tmp;
 
-    key = hash_32(groupid, HASH_USER_SHIFT);
+    key = hash_32(groupid, HASH_GROUP_SHIFT);
 
     hlist_for_each_entry(group, tmp, &cm->group_map[key], hentry) {
         if(group->groupid == groupid) {
@@ -440,15 +440,19 @@ static int cmd_join_group_handle(cli_mgr_t *cm, struct pack_join_group *pr)
     user_info_t *uinfo;
     group_info_t *ginfo;
 
-    logd("join group request from user:%u, group:%u", pr->userid, pr->groupid);
+    logd("join group request from user:%u, group:%u.\n", pr->userid, pr->groupid);
 
     uinfo = cli_mgr_get_user(cm, pr->userid);
-    if(!uinfo)
+    if(!uinfo) {
+        loge("not found user by id:%d.\n", pr->userid);
         return -EINVAL;
+    }
 
     ginfo = cli_mgr_get_group(cm, pr->groupid);
-    if(!ginfo)
+    if(!ginfo) {
+        loge("not found group by id:%d.\n", pr->groupid);
         return -EINVAL;
+    }
 
     uinfo->group = ginfo;
     list_add_tail(&uinfo->entry, &ginfo->userlist);
