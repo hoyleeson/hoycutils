@@ -182,10 +182,11 @@ static void iohandler_in_handle_work(struct work_struct *work)
 
     while(queue_count(ioh->q_in) > 0) {
         pack = (struct iopacket *)queue_out(ioh->q_in);
+        if(!pack)
+            return;
 
         if(ioh->h_ops.post) 
             ioh->h_ops.post(ioh, pack);
-
         iohandler_pack_free(ioh, pack, 1);
     }
 }
@@ -421,15 +422,11 @@ static void iohandler_normal_post(void* priv, struct iopacket *pkt)
     iohandler_t *ioh = (iohandler_t *)priv;
     pack_buf_t *pkb = pkt->packet.buf;
 
-    if(!pkb) {
-        iohandler_pack_free(ioh, pkt, 0);
+    if(!pkb)
         return;
-    }
 
     if(ioh->h_ops.handle)
         ioh->h_ops.handle(ioh->priv_data, pkb->data, pkb->len);
-
-    iohandler_pack_free(ioh, pkt, 1);
 }
 
 iohandler_t *iohandler_create(ioasync_t *aio, int fd,
@@ -454,18 +451,14 @@ static void iohandler_accept_post(void* priv, struct iopacket *pkt)
     iohandler_t *ioh = (iohandler_t *)priv;
     pack_buf_t *pkb = pkt->packet.buf;
 
-    if(!pkb) {
-        iohandler_pack_free(ioh, pkt, 0);
+    if(!pkb)
         return;
-    }
 
     if(ioh->h_ops.accept) {
         int channel;
         channel = ((int *)pkb->data)[0];
         ioh->h_ops.accept(ioh->priv_data, channel);
     }
-
-    iohandler_pack_free(ioh, pkt, 1);
 }
 
 iohandler_t *iohandler_accept_create(ioasync_t *aio, int fd,
@@ -491,14 +484,11 @@ static void iohandler_udp_post(void* priv, struct iopacket *pkt)
     iohandler_t *ioh = (iohandler_t *)priv;
     pack_buf_t *pkb = pkt->packet.buf;
 
-    if(!pkb) {
-        iohandler_pack_free(ioh, pkt, 0);
+    if(!pkb)
         return;
-    }
+
     if(ioh->h_ops.handlefrom)
         ioh->h_ops.handlefrom(ioh->priv_data, pkb->data, pkb->len, &pkt->addr);
-
-    iohandler_pack_free(ioh, pkt, 1);
 }
 
 iohandler_t *iohandler_udp_create(ioasync_t *aio, int fd,
