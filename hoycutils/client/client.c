@@ -23,6 +23,7 @@
 #include <common/log.h>
 #include <common/hbeat.h>
 #include <common/timer.h>
+#include <common/common.h>
 #include <common/data_frag.h>
 
 #include "client.h"
@@ -720,15 +721,6 @@ static void cli_hbeat_timer_handle(unsigned long data)
 
     client_hbeat();
     mod_timer(&cli->hbeat_timer, curr_time_ms() + HBEAD_DEAD_LINE);
-}
-
-int common_init(void)
-{
-    init_workqueues();
-    global_ioasync_init();
-    init_timers();
-
-    return 0;
 }
 
 void common_release(void)

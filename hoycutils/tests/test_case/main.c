@@ -1,4 +1,6 @@
 #include <stdio.h>
+
+#include <common/core.h>
 #include <common/common.h>
 
 #include "test_case.h"
@@ -14,8 +16,9 @@ struct test_case cases[] = {
 	{"list", "", test_list},
 	{"configs", "", test_configs},
 	{"workqueue", "", test_workqueue},
-
+	{"timer", "", test_timer},
 };
+
 
 int main(int argc, char **argv)
 {
@@ -23,6 +26,8 @@ int main(int argc, char **argv)
 	int ret;
 	int result = 0;
 	struct test_case *tcase;
+
+    common_init();
 
 	for(i=0; i<ARRAY_SIZE(cases); i++) {
 		tcase = cases + i;

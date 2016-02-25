@@ -11,9 +11,7 @@
 #include <config.h>
 #include <common/log.h>
 #include <common/utils.h>
-#include <common/timer.h>
-#include <common/ioasync.h>
-#include <common/workqueue.h>
+#include <common/common.h>
 
 #include "serv.h"
 #include "turn.h"
@@ -120,15 +118,6 @@ static void do_help(void)
     logi("%s\n", buf);
 }
 
-static void common_init(void)
-{
-    init_workqueues();
-    global_ioasync_init();
-    init_task_protocals();
-    init_timers();
-}
-
-
 static void command_loop(void) 
 {
     while(1) {
@@ -167,6 +156,7 @@ int main(int argc, char **argv)
     signals_init();
 
     common_init();
+    init_task_protocals();
 
     if(mode & SERV_MODE_CENTER_SERV) {
         chost = LOCAL_HOST;

@@ -187,6 +187,7 @@ static void iohandler_in_handle_work(struct work_struct *work)
 
         if(ioh->h_ops.post) 
             ioh->h_ops.post(ioh, pack);
+
         iohandler_pack_free(ioh, pack, 1);
     }
 }

@@ -12,9 +12,10 @@
 #ifndef _COMMON_BITOPS_H_
 #define _COMMON_BITOPS_H_
 
-#include <common/types.h>
-#include <common/common.h>
 #include <stdint.h>
+
+#include <common/types.h>
+#include <common/core.h>
 #include <common/compiler.h>
 
 #define BIT(nr)             (1UL << (nr))

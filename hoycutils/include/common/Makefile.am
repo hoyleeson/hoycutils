@@ -1,9 +1,9 @@
 
-noinst_HEADERS = log.h completion.h bug.h common.h list.h workqueue.h types.h configs.h \
-				 fifo.h utils.h packet.h timer.h mempool.h poller.h ioasync.h bsearch.h \
-				 compiler.h compiler-gcc.h rbtree.h hbeat.h queue.h data_frag.h sizes.h \
-				 fake_atomic.h hash.h bitops.h memsizes.h sockets.h iowait.h ethtools.h \
-				 netsock.h
-
+noinst_HEADERS = core.h types.h compiler.h compiler-gcc.h sizes.h bitops.h bug.h log.h \
+				 list.h rbtree.h bsearch.h fifo.h wait.h notifier.h utils.h mempool.h \
+				 completion.h hash.h memsizes.h workqueue.h queue.h timer.h netsock.h \
+				 poller.h ioasync.h hbeat.h packet.h pack_head.h configs.h iowait.h \
+				 fake_atomic.h ethtools.h data_frag.h sockets.h common.h 
+				 
 
 

@@ -4,7 +4,7 @@
 #include <sys/time.h>
 #include <errno.h>
 
-#include <common/common.h>
+#include <common/core.h>
 #include <common/completion.h>
 
 

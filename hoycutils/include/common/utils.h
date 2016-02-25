@@ -2,6 +2,7 @@
 #define _COMMON_UTILS_H_
 
 #include <stdint.h>
+#include <time.h>
 
 #include <common/types.h>
 

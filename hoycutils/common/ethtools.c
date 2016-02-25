@@ -58,7 +58,6 @@ int detect_mii(int skfd, const char *ifname)
 {
     struct ifreq ifr;
     unsigned short *data, mii_val;
-    unsigned phy_id;
 
     /* Get the vitals from the interface. */
     strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
@@ -69,10 +68,8 @@ int detect_mii(int skfd, const char *ifname)
     }
 
     data = (unsigned short *)(&ifr.ifr_data);
-    phy_id = data[0];
+    //phy_id = data[0];
     data[1] = 1;
-
-    logv("phy id:%d", phy_id);
 
     if (ioctl(skfd, SIOCGMIIREG, &ifr) < 0) {
         loge("SIOCGMIIREG on %s failed: %s\n", ifr.ifr_name, strerror(errno));

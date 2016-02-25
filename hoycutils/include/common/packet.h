@@ -2,10 +2,11 @@
 #define _COMMON_PACKET_H_
 
 #include <stdint.h>
+
 #include <common/list.h>
 #include <common/fake_atomic.h>
 #include <common/mempool.h>
-#include <common/common.h>
+#include <common/core.h>
 
 #define PACKET_MAX_PAYLOAD      (2000)
 

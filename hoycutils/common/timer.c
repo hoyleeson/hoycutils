@@ -34,7 +34,7 @@ static void timer_set_interval(struct timer_list *timer, uint64_t expires)
     itval.it_value.tv_sec = i_sec;
     itval.it_value.tv_nsec = i_msec * NSEC_PER_MSEC;
 
-    logi("timer set interval:sec:%d, msec:%d", i_sec, i_msec);
+    logi("timer set interval:sec:%d, msec:%d\n", i_sec, i_msec);
     if (timerfd_settime(base->clockid, 0, &itval, NULL) == -1)
         loge("timer_set_interval: timerfd_settime failed, %d.%d\n", i_sec, i_msec);
 }
@@ -53,10 +53,13 @@ static void update_timer_recent_expires(struct timer_base *base)
     struct timer_list *recent;
     struct rb_root *root = &base->timer_tree;
 
+    if(RB_EMPTY_ROOT(root))
+        return;
+
     recent = rb_entry(root->rb_node, struct timer_list, entry);
 
     if(time_after(base->next_expires, recent->expires) ||
-            time_before_eq(now, base->next_expires)) {
+            time_before_eq(base->next_expires, now)) {
         timer_set_expires(recent, recent->expires);
     }
 }
@@ -120,7 +123,7 @@ static int internal_add_timer(struct timer_list* timer)
     uint64_t expires = timer->expires;
     uint64_t now = curr_time_ms();
 
-    if(time_before(now, expires))
+    if(time_before(expires, now))
         return -EINVAL;
 
     timer_insert_tree(timer);
@@ -231,7 +234,7 @@ next:
     node = root->rb_node;
     timer = rb_entry(node, struct timer_list, entry);
 
-    if(time_after_eq(now, timer->expires)) {
+    if(time_before_eq(timer->expires, now)) {
         void (*fn)(unsigned long);
         unsigned long data;
         struct list_head *l;
@@ -256,7 +259,8 @@ next:
 
         pthread_mutex_lock(&base->lock);
 
-        goto next;
+        if(!RB_EMPTY_ROOT(root))
+            goto next;
     }
 
     update_timer_recent_expires(base);
@@ -298,6 +302,11 @@ int init_timers(void)
     pthread_mutex_init(&base->lock, NULL);
 
     aio = get_global_ioasync();
+    if(aio == NULL) {
+        loge("please initialize ioasync.\n");
+        return -EINVAL;
+    }
+
     base->ioh = iohandler_create(aio, base->clockid, 
             timer_handler, timer_close, base);	
     return 0;

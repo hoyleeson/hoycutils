@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include <common/common.h>
+#include <common/core.h>
 #include <common/types.h>
 #include <common/log.h>
 #include <common/bsearch.h>
