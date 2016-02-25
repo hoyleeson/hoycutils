@@ -200,7 +200,7 @@ int del_timer(struct timer_list *timer)
     struct timer_base* base = timer->base;
 
     pthread_mutex_lock(&base->lock);
-    if(!timer_pending(timer)) {
+    if(timer_pending(timer)) {
         detach_timer(timer);
         update_timer_recent_expires(base);
         ret = 1;	

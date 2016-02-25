@@ -254,7 +254,7 @@ void client_user_dead(hbeat_node_t *hbeat)
 {
     user_info_t *user;
 
-    user = node_to_item(hbeat, user_info_t, hbeat);
+    user = container_of(hbeat, user_info_t, hbeat);
     logi("user %d dead.\n", user->userid);
 
     cmd_logout_handle(user->mgr, user->userid); /* XXX */

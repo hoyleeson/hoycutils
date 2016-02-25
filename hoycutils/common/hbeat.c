@@ -31,10 +31,10 @@ void hbeat_rm_from_god(hbeat_god_t *god, hbeat_node_t *hbeat)
 
 void hbeat_god_handle(unsigned long data)
 {
-    hbeat_node_t *hbeat;
+    hbeat_node_t *hbeat, *tmp;
     hbeat_god_t *god = (hbeat_god_t *)data;
 
-    list_for_each_entry(hbeat, &god->list, node) {
+    list_for_each_entry_safe(hbeat, tmp, &god->list, node) {
         hbeat->count--;
 
         if(hbeat->count <= 0) {
