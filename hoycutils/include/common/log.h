@@ -81,6 +81,10 @@ static inline void dump_data(const char *desc, void *data, int len)
 
 #endif
 
+#ifdef DEBUG
+#define DDEBUG
+#endif
+
 #ifdef DDEBUG
 #define logd(...) 		LOGD(__VA_ARGS__)
 #else
