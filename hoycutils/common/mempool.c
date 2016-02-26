@@ -107,7 +107,7 @@ void *mempool_alloc(mempool_t *pool)
             b = (struct block *) malloc(pool->bsize);
             pool->dynamic_used++;
             c = ++pool->count;
-            if( (c & ((1<<9)-1)) == 0 ) {
+            if( (c & ((1<<10)-1)) == 0 ) {
                 logw("hitting %d blocks\n", c);
             }
         }
@@ -132,9 +132,8 @@ static bool mempool_needed_shrink(mempool_t *pool)
 
     free = pool->count - pool->used;
     dynamic_free = (pool->count - pool->init_count) - pool->dynamic_used;
-
-    return !!((free > pool->init_count) && 
-            (free - dynamic_free) > (pool->init_count >> 2) + 8);
+    return !!((free > pool->init_count * 3) && 
+            (dynamic_free > pool->init_count));
 }
 
 void mempool_shrink(mempool_t *pool) 
@@ -160,6 +159,7 @@ void mempool_shrink(mempool_t *pool)
         list_del(l);
 
         free(b);
+        pool->count--;
 
         if(--shrink == 0)
             break;

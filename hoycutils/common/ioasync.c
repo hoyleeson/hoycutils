@@ -114,38 +114,41 @@ void iohandler_pack_buf_free(pack_buf_t *pkb)
     pack_buf_free(pkb);
 }
 
-void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *pkb)
+void iohandler_pack_submit(iohandler_t *ioh, struct iopacket *pack)
 {
     int empty;
+
+    pthread_mutex_lock(&ioh->lock);
+
+    empty = !queue_count(ioh->q_out);
+    if(empty) {
+        ioasync_t *aio = ioh->owner;
+        poller_event_enable(&aio->poller, ioh->fd, EV_WRITE);
+    }
+    queue_in(ioh->q_out, (struct packet *)pack);
+
+    pthread_mutex_unlock(&ioh->lock);
+}
+
+void iohandler_pkt_send(iohandler_t *ioh, pack_buf_t *pkb)
+{
     struct iopacket *pack;
 
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = pkb;
 
-    empty = !queue_count(ioh->q_out);
-    queue_in(ioh->q_out, (struct packet *)pack);
-    if(empty) {
-        ioasync_t *aio = ioh->owner;
-        poller_event_enable(&aio->poller, ioh->fd, EV_WRITE);
-    }
+    iohandler_pack_submit(ioh, pack);
 }
 
 void iohandler_pkt_sendto(iohandler_t *ioh, pack_buf_t *pkb, struct sockaddr *to)
 {
-    int empty;
     struct iopacket *pack;
 
     pack = iohandler_pack_alloc(ioh, 0);
     pack->packet.buf = pkb;
     pack->addr = *to;
 
-    empty = !queue_count(ioh->q_out);
-    queue_in(ioh->q_out, (struct packet *)pack);
-
-    if(empty) {
-        ioasync_t *aio = ioh->owner;
-        poller_event_enable(&aio->poller, ioh->fd, EV_WRITE);
-    }
+    iohandler_pack_submit(ioh, pack);
 }
 
 void iohandler_send(iohandler_t *ioh, const uint8_t *data, int len)
@@ -240,6 +243,7 @@ static int iohandler_read(iohandler_t* ioh)
     return 0;
 
 fail:
+    loge("iohandler read data failed.\n");
     iohandler_pack_free(ioh, pack, 1);
     return -EINVAL;
 }
@@ -303,8 +307,11 @@ static int iohandler_write(iohandler_t *ioh)
 
     logv("iohandler send data.\n");
 
+    pthread_mutex_lock(&ioh->lock);
     if(queue_count(ioh->q_out) == 0)
-        poller_event_disable(&aio->poller, ioh->fd, EPOLLOUT);
+        poller_event_disable(&aio->poller, ioh->fd, EV_WRITE);
+
+    pthread_mutex_unlock(&ioh->lock);
 
     ret = iohandler_write_packet(ioh, pack);
 

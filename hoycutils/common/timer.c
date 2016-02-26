@@ -58,7 +58,7 @@ static void update_timer_recent_expires(struct timer_base *base)
 
     recent = rb_entry(root->rb_node, struct timer_list, entry);
 
-    if(time_after(base->next_expires, recent->expires) ||
+    if(time_before(recent->expires, base->next_expires) ||
             time_before_eq(base->next_expires, now)) {
         timer_set_expires(recent, recent->expires);
     }
