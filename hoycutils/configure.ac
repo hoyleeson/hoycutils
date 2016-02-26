@@ -7,7 +7,7 @@ AC_INIT(hoycutils, 1.0.00, hoyleeson@gmail.com)
 
 AM_INIT_AUTOMAKE
 
-AC_CONFIG_SRCDIR([main.c])
+AC_CONFIG_SRCDIR([common/common.c])
 AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
