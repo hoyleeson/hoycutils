@@ -124,7 +124,7 @@ static void client_pkt_send(struct client_peer *peer, int type, void *data, int 
 
     pkb->len = len + pack_head_len();
 
-    logd("client send packet, dist addr:%s, port:%d. type:%d, len:%d\n", 
+    logv("client send packet, dist addr:%s, port:%d. type:%d, len:%d\n",
             inet_ntoa(peer->serv_addr.sin_addr), 
             ntohs(peer->serv_addr.sin_port), type, len);
 
@@ -146,6 +146,7 @@ int client_login(void)
     int ret;
     int userid;
     void *data;
+    iowait_watcher_t watcher;
     struct client *cli = &_client;
 
     if(!cli->running)
@@ -153,9 +154,12 @@ int client_login(void)
 
     data = client_pkt_alloc(&cli->control);
 
+    iowait_watcher_init(&watcher, MSG_LOGIN_RESPONSE, 0, &userid, sizeof(int));
+    iowait_register_watcher(&cli->waits, &watcher);
+
     client_pkt_send(&cli->control, MSG_CLI_LOGIN, data, 0);
 
-    ret = wait_for_response(&cli->waits, MSG_LOGIN_RESPONSE, 0, &userid);
+    ret = wait_for_response(&cli->waits, &watcher);
     if(ret)
         return -EINVAL;
 
@@ -190,6 +194,7 @@ int client_create_group(int open, const char *name, const char *passwd)
     struct client *cli = &_client;
     struct pack_creat_group *p;
     struct pack_creat_group_result result;
+    iowait_watcher_t watcher;
 
     if(!cli->running)
         return -EINVAL;
@@ -209,9 +214,12 @@ int client_create_group(int open, const char *name, const char *passwd)
         strncpy((char *)p->passwd, passwd, GROUP_PASSWD_MAX);
     }
 
+    iowait_watcher_init(&watcher, MSG_CREATE_GROUP_RESPONSE, 0, &result, sizeof(result));
+    iowait_register_watcher(&cli->waits, &watcher);
+
     client_pkt_send(&cli->control, MSG_CLI_CREATE_GROUP, p, sizeof(*p));
 
-    ret = wait_for_response(&cli->waits, MSG_CREATE_GROUP_RESPONSE, 0, &result); /* XXX seq */
+    ret = wait_for_response(&cli->waits, &watcher); /* XXX seq */
     if(ret)
         return -EINVAL;
 
@@ -250,6 +258,7 @@ int client_list_group(int pos, int count, struct group_description *gres, int *r
     char result[RESULT_MAX_LEN];
     struct pack_list_group *p;
     group_desc_t *gdesc;
+    iowait_watcher_t watcher;
     int retlen = 0;
     int ofs = 0;
     struct group_description *gp = gres;
@@ -264,10 +273,12 @@ int client_list_group(int pos, int count, struct group_description *gres, int *r
     p->pos = pos;
     p->count = count;
 
+    iowait_watcher_init(&watcher, MSG_LIST_GROUP_RESPONSE, 0, result, sizeof(result));
+    iowait_register_watcher(&cli->waits, &watcher);
+
     client_pkt_send(&cli->control, MSG_CLI_LIST_GROUP, p, sizeof(*p));
 
-    ret = wait_for_response_data(&cli->waits, MSG_LIST_GROUP_RESPONSE, 0, 
-            result, &retlen); /* XXX */
+    ret = wait_for_response_data(&cli->waits, &watcher, &retlen); /* XXX */
     if(ret)
         return -EINVAL;
 
@@ -300,6 +311,7 @@ int client_join_group(struct group_description *group, const char *passwd)
     struct pack_join_group *p;
     struct client *cli = &_client;
     struct pack_creat_group_result result;
+    iowait_watcher_t watcher;
 
     if(!cli->running)
         return -EINVAL;
@@ -309,9 +321,12 @@ int client_join_group(struct group_description *group, const char *passwd)
     p->userid = cli->userid;
     p->groupid = group->groupid;
 
+    iowait_watcher_init(&watcher, MSG_JOIN_GROUP_RESPONSE, 0, &result, sizeof(result));
+    iowait_register_watcher(&cli->waits, &watcher);
+
     client_pkt_send(&cli->control, MSG_CLI_JOIN_GROUP, p, sizeof(*p));
 
-    ret = wait_for_response(&cli->waits, MSG_JOIN_GROUP_RESPONSE, 0, &result); /* XXX */
+    ret = wait_for_response(&cli->waits, &watcher); /* XXX */
     if(ret)
         return -EINVAL;
 
@@ -417,11 +432,11 @@ static void cli_frag_output(void *opaque, data_vec_t *v)
     p->datalen = v->len;
     memcpy(p->data, v->data, v->len);
 
-    logd("pack state img output: seq: %d, mf:%d, offset:%d, datalen:%d\n", 
+    logv("pack state img output: seq: %d, mf:%d, offset:%d, datalen:%d\n", 
             p->seq, p->mf, p->frag_ofs, p->datalen);
 
     task_req_pack_send(cli, p, sizeof(*p) + v->len);
-usleep(10); /* XXX */
+    usleep(10); /* XXX */
 }
 
 void client_send_state_img(void *data, int len)
@@ -432,7 +447,7 @@ void client_send_state_img(void *data, int len)
         return;	
     }
 
-    logd("client send state img, len:%d\n", len);
+    logv("client send state img, len:%d\n", len);
 
     data_frag(cli->frags, data, len);
 }
@@ -581,7 +596,7 @@ static pack_buf_t *payload_to_pack_buf(void *p)
 static void cli_frag_pkt_free(void *opaque, void *frag_pkt)
 {
     pack_buf_t *pkb;
-//    struct client *cli = (struct client *)opaque;
+    //    struct client *cli = (struct client *)opaque;
 
     pkb = payload_to_pack_buf(frag_pkt);
 

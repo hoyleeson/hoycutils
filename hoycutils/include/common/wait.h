@@ -27,7 +27,7 @@ struct __wait_queue_head {
 typedef struct __wait_queue_head wait_queue_head_t;
 
 #define __WAITQUEUE_INITIALIZER(name) {				\
-	.done 		= COMPLETION_INITIALIZER, 	\
+	.done 		= COMPLETION_INITIALIZER((name).done), 	\
 	.func		= default_wake_function,	\
 	.task_list	= { NULL, NULL } }
 
@@ -202,7 +202,7 @@ int autoremove_wake_function(wait_queue_t *wait, int sync);
 
 #define DEFINE_WAIT_FUNC(name, function)				\
 	wait_queue_t name = {						\
-		.done 		= COMPLETION_INITIALIZER, 	\
+		.done 		= COMPLETION_INITIALIZER((name).done), 	\
 		.func		= function,				\
 		.task_list	= LIST_HEAD_INIT((name).task_list),	\
 	}

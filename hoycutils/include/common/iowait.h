@@ -10,25 +10,46 @@
 #define MAX_RESPONSE_CAPACITY   (256)
 #define WAIT_RES_DEAD_LINE      (5 * 1000)
 
-struct res_info {
+
+typedef struct iowait_watcher {
+	/* in param */
     int type;
     int seq;
-    void *res;
     int count;
-    struct hlist_node hentry;
+    void *res;
+
     struct completion done;
-};
+    struct hlist_node hentry;
+} iowait_watcher_t;
+
 
 typedef struct _iowait {
     struct hlist_head *slots;
     pthread_mutex_t lock;
 } iowait_t;
 
-int iowait_init(iowait_t *wait);
-int wait_for_response_data(iowait_t *wait, int type, int seq, void *result, int *count);
-int post_response_data(iowait_t *wait, int type, int seq, void *result, int count);
 
-int wait_for_response(iowait_t *wait, int type, int seq, void *result);
+#define __IOWAIT_WATCHER_INITIALIZER(name, _type, _seq, _res, _count) { 	\
+	.type = _type, 		\
+	.seq = _seq, 		\
+	.res = _res, 		\
+	.count = _count, 	\
+	.done = COMPLETION_INITIALIZER((name).done) 	\
+}
+
+#define DECLARE_IOWAIT_WATCHER(name, _type, _seq, _res, _count) 	\
+	iowait_watcher_t name = __IOWAIT_WATCHER_INITIALIZER(name)
+
+
+int iowait_init(iowait_t *wait);
+void iowait_watcher_init(iowait_watcher_t *watcher, 
+		int type, int seq, void *result, int count);
+int iowait_register_watcher(iowait_t *wait, iowait_watcher_t *watcher);
+
+int wait_for_response_data(iowait_t *wait, iowait_watcher_t *watcher, int *res);
+int wait_for_response(iowait_t *wait, iowait_watcher_t *watcher);
+
+int post_response_data(iowait_t *wait, int type, int seq, void *result, int count);
 int post_response(iowait_t *wait, int type, int seq, void *result,
         void (*fn)(void *dst, void *src));
 

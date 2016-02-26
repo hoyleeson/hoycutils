@@ -92,7 +92,7 @@ static inline uint64_t curr_time_ms(void)
  */
 static inline int timer_pending(const struct timer_list * timer)
 {
-	return RB_EMPTY_NODE(&timer->entry) || !list_empty(&timer->list);
+	return !RB_EMPTY_NODE(&timer->entry) || !list_empty(&timer->list);
 }
 
 

@@ -22,7 +22,7 @@ struct completion {
 	pthread_cond_t cond;
 };
 
-#define COMPLETION_INITIALIZER { 	\
+#define COMPLETION_INITIALIZER(work) { 	\
 	.done = 0, 	\
 	.lock = PTHREAD_MUTEX_INITIALIZER, \
 	.cond = PTHREAD_COND_INITIALIZER }
@@ -39,7 +39,7 @@ struct completion {
  * variables.
  */
 #define DECLARE_COMPLETION(work) \
-	struct completion work = COMPLETION_INITIALIZER
+	struct completion work = COMPLETION_INITIALIZER(work)
 
 /**
  * init_completion - Initialize a dynamically allocated completion

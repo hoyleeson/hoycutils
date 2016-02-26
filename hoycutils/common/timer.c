@@ -34,7 +34,7 @@ static void timer_set_interval(struct timer_list *timer, uint64_t expires)
     itval.it_value.tv_sec = i_sec;
     itval.it_value.tv_nsec = i_msec * NSEC_PER_MSEC;
 
-    logi("timer set interval:sec:%d, msec:%d\n", i_sec, i_msec);
+    logv("timer set interval:sec:%d, msec:%d\n", i_sec, i_msec);
     if (timerfd_settime(base->clockid, 0, &itval, NULL) == -1)
         loge("timer_set_interval: timerfd_settime failed, %d.%d\n", i_sec, i_msec);
 }
@@ -102,12 +102,13 @@ static void timer_erase_tree(struct timer_list *timer)
             struct timer_list *entry = NULL;
             entry = list_entry(timer->list.next, struct timer_list, list);
             timer_insert_tree(entry);
+			list_del_init(&timer->list);
+			return;
         }
     }
 
     list_del_init(&timer->list);
 }
-
 
 
 /*detach timer from timer list.*/
@@ -231,6 +232,9 @@ static void run_timers(struct timer_base* base)
     pthread_mutex_lock(&base->lock);
 
 next:
+	if(RB_EMPTY_ROOT(root))
+		goto empty;
+
     node = root->rb_node;
     timer = rb_entry(node, struct timer_list, entry);
 
@@ -259,11 +263,12 @@ next:
 
         pthread_mutex_lock(&base->lock);
 
-        if(!RB_EMPTY_ROOT(root))
-            goto next;
+		goto next;
     }
 
     update_timer_recent_expires(base);
+
+empty:
     pthread_mutex_unlock(&base->lock);
 }
 

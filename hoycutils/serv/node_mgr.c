@@ -98,8 +98,8 @@ static void node_hand_fn(void* opaque, uint8_t *data, int len)
             response_post(&node->waits, MSG_TASK_ASSIGN_RESPONSE, pt->taskid, &pt->addr);
 #if 1
             struct sockaddr_in *addr = (struct sockaddr_in *)&pt->addr;
-            logd("response :task worker address: %s, port: %d.\n", 
-                    inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+            logd("response :task worker(%d) address: %s, port: %d.\n", 
+					pt->taskid, inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
 #endif
             break;
         }
@@ -203,6 +203,7 @@ task_handle_t *nodemgr_task_assign(node_mgr_t *mgr, int type, int priority,
     node_info_t *node;
     struct pack_task_assign *pkt;
     task_handle_t *task;
+	iowait_watcher_t watcher;
 
     if(!mgr)
         return NULL;
@@ -233,12 +234,16 @@ task_handle_t *nodemgr_task_assign(node_mgr_t *mgr, int type, int priority,
     pkt->taskid = task->taskid;
     pkt->priority = task->priority;
 
+	iowait_watcher_init(&watcher, MSG_TASK_ASSIGN_RESPONSE, task->taskid, 
+			&task->addr, sizeof(task->addr));
+	iowait_register_watcher(&node->waits, &watcher);
+
     nodemgr_task_pkt_send(node, MSG_TASK_ASSIGN, pkt, len);
 
     /* get node server port by assign request. */
-    wait_for_response(&node->waits, MSG_TASK_ASSIGN_RESPONSE, task->taskid, &task->addr);
-    logd("task worker address: %s, port: %d.\n", 
-            inet_ntoa(task->addr.sin_addr), ntohs(task->addr.sin_port));
+    wait_for_response(&node->waits, &watcher);
+    logd("task worker(%d) address: %s, port: %d.\n", 
+			task->taskid, inet_ntoa(task->addr.sin_addr), ntohs(task->addr.sin_port));
 
     return task;
 

@@ -10,7 +10,6 @@
 #define RES_SLOT_CAPACITY       (1 << RES_SLOT_SHIFT)
 #define RES_SLOT_MASK           (RES_SLOT_CAPACITY - 1)
 
-
 int iowait_init(iowait_t *wait)
 {
     int i;
@@ -23,7 +22,7 @@ int iowait_init(iowait_t *wait)
     return 0;
 }
 
-static struct hlist_head *res_slot_head(iowait_t *wait, int type, int seq)
+static struct hlist_head *watcher_slot_head(iowait_t *wait, int type, int seq)
 {
     unsigned long key;
 
@@ -32,32 +31,41 @@ static struct hlist_head *res_slot_head(iowait_t *wait, int type, int seq)
     return &wait->slots[key];
 }
 
-int wait_for_response_data(iowait_t *wait, int type, int seq,
-        void *result, int *count)
+void iowait_watcher_init(iowait_watcher_t *watcher, 
+		int type, int seq, void *result, int count)
 {
-    int ret;
-    struct res_info res;
+    watcher->type = type;
+    watcher->seq = seq;
+    watcher->res = result;
+    watcher->count = count;
+
+    init_completion(&watcher->done);
+}
+
+int iowait_register_watcher(iowait_t *wait, iowait_watcher_t *watcher)
+{
     struct hlist_head *rsh;
 
-    res.type = type;
-    res.seq = seq;
-    res.res = result;
-    res.count = (count) ? *count : 0;
-
-    init_completion(&res.done);
-    rsh = res_slot_head(wait, type, seq);
+    rsh = watcher_slot_head(wait, watcher->type, watcher->seq);
 
     pthread_mutex_lock(&wait->lock);
-    hlist_add_head(&res.hentry, rsh);
+    hlist_add_head(&watcher->hentry, rsh);
     pthread_mutex_unlock(&wait->lock);
 
-    ret = wait_for_completion_timeout(&res.done, WAIT_RES_DEAD_LINE);
+	return 0;
+}
 
-    if(count != NULL)
-        *count = res.count;
+int wait_for_response_data(iowait_t *wait, iowait_watcher_t *watcher, int *res)
+{
+    int ret;
+
+    ret = wait_for_completion_timeout(&watcher->done, WAIT_RES_DEAD_LINE);
+
+	if(res != NULL)
+		*res = watcher->count;
 
     pthread_mutex_lock(&wait->lock);
-    hlist_del_init(&res.hentry);
+    hlist_del_init(&watcher->hentry);
     pthread_mutex_unlock(&wait->lock);
     return ret;
 }
@@ -66,15 +74,15 @@ int wait_for_response_data(iowait_t *wait, int type, int seq,
 int post_response_data(iowait_t *wait, int type, int seq, 
         void *result, int count)
 {
-    struct res_info *res = NULL;
+    iowait_watcher_t *watcher = NULL;
     struct hlist_head *rsh;
     struct hlist_node *tmp;
 
-    rsh = res_slot_head(wait, type, seq);
+    rsh = watcher_slot_head(wait, type, seq);
 
     pthread_mutex_lock(&wait->lock);
-    hlist_for_each_entry(res, tmp, rsh, hentry) {
-        if(res->type == type && res->seq == seq) {
+    hlist_for_each_entry(watcher, tmp, rsh, hentry) {
+        if(watcher->type == type && watcher->seq == seq) {
             pthread_mutex_unlock(&wait->lock);
             goto found; 
         }
@@ -83,20 +91,20 @@ int post_response_data(iowait_t *wait, int type, int seq,
     return -EINVAL;
 
 found:
-    if((res->count == 0) || 
-            (res->count != 0 && res->count > count))
-        res->count = count;
+    if((watcher->count == 0) || 
+            (watcher->count != 0 && watcher->count > count))
+        watcher->count = count;
 
-    memcpy(res->res, result, res->count);
+    memcpy(watcher->res, result, watcher->count);
 
-    complete(&res->done);
+    complete(&watcher->done);
     return 0;
 }
 
 
-int wait_for_response(iowait_t *wait, int type, int seq, void *result)
+int wait_for_response(iowait_t *wait, iowait_watcher_t *watcher)
 {
-    return wait_for_response_data(wait, type, seq, result, NULL);
+    return wait_for_response_data(wait, watcher, NULL);
 }
 
 
@@ -105,13 +113,13 @@ int post_response(iowait_t *wait, int type, int seq, void *result,
 {
     struct hlist_head *rsh;
     struct hlist_node *r;
-    struct res_info *res;
+    iowait_watcher_t *watcher;
 
-    rsh = res_slot_head(wait, type, seq);
+    rsh = watcher_slot_head(wait, type, seq);
 
     pthread_mutex_lock(&wait->lock);
-    hlist_for_each_entry(res, r, rsh, hentry) {
-        if(res->type == type && res->seq == seq) {
+    hlist_for_each_entry(watcher, r, rsh, hentry) {
+        if(watcher->type == type && watcher->seq == seq) {
             pthread_mutex_unlock(&wait->lock);
             goto found; 
         }
@@ -120,9 +128,9 @@ int post_response(iowait_t *wait, int type, int seq, void *result,
     return -EINVAL;
 
 found:
-    fn(res->res, result);
+    fn(watcher->res, result);
 
-    complete(&res->done);
+    complete(&watcher->done);
     return 0;
 }
 

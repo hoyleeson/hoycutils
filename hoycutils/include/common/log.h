@@ -82,7 +82,7 @@ static inline void dump_data(const char *desc, void *data, int len)
 #endif
 
 #ifdef DEBUG
-#define DDEBUG
+//#define DDEBUG
 #endif
 
 #ifdef DDEBUG
