@@ -1,3 +1,15 @@
+/*
+ * include/common/timer.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_TIMER_H_
 #define _COMMON_TIMER_H_
 
@@ -92,7 +104,7 @@ static inline uint64_t curr_time_ms(void)
  */
 static inline int timer_pending(const struct timer_list * timer)
 {
-	return RB_EMPTY_NODE(&timer->entry) || !list_empty(&timer->list);
+	return !RB_EMPTY_NODE(&timer->entry) || !list_empty(&timer->list);
 }
 
 

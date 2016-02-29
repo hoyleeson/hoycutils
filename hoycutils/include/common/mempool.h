@@ -1,8 +1,23 @@
+/*
+ * include/common/mempool.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_MEMPOOL_H_
 #define _COMMON_MEMPOOL_H_
 
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <pthread.h>
+
 #include <common/list.h>
 
 typedef struct mempool mempool_t;
@@ -60,7 +75,6 @@ static inline void mm_free(void *ptr)
 {
 	return __mm_free(ptr, -1);
 }
-
 
 #endif
 

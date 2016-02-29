@@ -1,7 +1,21 @@
+/*
+ * include/common/poller.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_POLLER_H_
 #define _COMMON_POLLER_H_
 
 #include <pthread.h>
+
+#include <common/wait.h>
 
 /* A struct poller object is used to monitor activity on one or more
  * file descriptors (e.g sockets).
@@ -75,6 +89,7 @@ struct poller {
     int ctl_socks[2];
     int running;
 
+    wait_queue_head_t waitq;
     pthread_mutex_t lock;
 };
 

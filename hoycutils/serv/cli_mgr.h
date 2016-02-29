@@ -4,8 +4,7 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <common/list.h>
-#include <common/iohandler.h>
-#include <common/hashmap.h>
+#include <common/ioasync.h>
 #include <common/hbeat.h>
 
 #include <protos.h>
@@ -13,6 +12,14 @@
 #include "node_mgr.h"
 
 #define GROUP_MAX_USER 		(8)
+
+#define HASH_USER_SHIFT 	    (9)
+#define HASH_USER_CAPACITY 	    (1 << HASH_USER_SHIFT)
+#define HASH_USER_MASK 			(HASH_USER_CAPACITY - 1)
+
+#define HASH_GROUP_SHIFT        (8)
+#define HASH_GROUP_CAPACITY     (1 << HASH_GROUP_SHIFT)
+#define HASH_GROUP_MASK         (HASH_GROUP_CAPACITY - 1)
 
 typedef struct _user_info user_info_t;
 typedef struct _group_info group_info_t;
@@ -32,7 +39,8 @@ struct _user_info {
     group_info_t *group;
     hbeat_node_t hbeat;
 
-    struct listnode node;
+    struct list_head entry;
+    struct hlist_node hentry;
     cli_mgr_t *mgr;
 };
 
@@ -44,23 +52,24 @@ struct _group_info {
     char passwd[GROUP_PASSWD_MAX];
 
     int users;
-    struct listnode userlist;
+    struct list_head userlist;
+    struct hlist_node hentry;
     unsigned long turn_handle;
 };
 
 struct _cli_mgr {
     uint32_t uid_pool; 	/* user id pool */
     uint32_t gid_pool; 	/* group id pool */
-    ioasync_t *hand;
+    iohandler_t *hand;
 
-    Hashmap *user_map;
-    Hashmap *group_map;
+    struct hlist_head user_map[HASH_USER_CAPACITY];
+    struct hlist_head group_map[HASH_GROUP_CAPACITY];
     int user_count;
     int group_count;
 
     node_mgr_t *node_mgr;
     uint16_t nextseq;
-    struct listnode group_list;
+    struct list_head group_list;
     hbeat_god_t hbeat_god;
     pthread_mutex_t lock;
 };

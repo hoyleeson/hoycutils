@@ -1,8 +1,23 @@
 #include <stdio.h>
-#include <common/common.h>
+
+#include <common/core.h>
+#include <common/init.h>
 
 #include "test_case.h"
 
+struct test_case
+{
+	char *name;
+	char *desc;
+	int (*func)(int argc, char **argv);
+};
+
+struct test_case cases[] = {
+	{"list", "", test_list},
+	{"configs", "", test_configs},
+	{"workqueue", "", test_workqueue},
+	{"timer", "", test_timer},
+};
 
 
 int main(int argc, char **argv)
@@ -12,7 +27,9 @@ int main(int argc, char **argv)
 	int result = 0;
 	struct test_case *tcase;
 
-	for(i=0; i<test_case_size; i++) {
+    common_init();
+
+	for(i=0; i<ARRAY_SIZE(cases); i++) {
 		tcase = cases + i;
 		if(tcase->func != NULL) {
 			printf("\n\n==========================================================\n");
@@ -27,5 +44,6 @@ int main(int argc, char **argv)
 	}
 
 	printf("\n\n=======================end================================\n");
-	printf("result: failed count:%d\n", result);
+	printf("test finish. failed count:%d\n", result);
+    return 0;
 }

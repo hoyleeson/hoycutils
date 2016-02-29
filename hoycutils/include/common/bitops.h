@@ -1,18 +1,32 @@
-/* Integer base 2 logarithm calculation
- *
- * Copyright (C) 2006 Red Hat, Inc. All Rights Reserved.
- * Written by David Howells (dhowells@redhat.com)
+/*
+ * include/common/bitops.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ * Integer base 2 logarithm calculation
+ *
  */
 
 #ifndef _COMMON_BITOPS_H_
 #define _COMMON_BITOPS_H_
 
+#include <stdint.h>
+
 #include <common/types.h>
+#include <common/core.h>
+#include <common/compiler.h>
+
+#define BIT(nr)             (1UL << (nr))
+#define BIT_MASK(nr)        (1UL << ((nr) % BITS_PER_LONG))
+#define BIT_WORD(nr)        ((nr) / BITS_PER_LONG)
+#define BITS_PER_BYTE       8
+#define BITS_TO_LONGS(nr)   DIV_ROUND_UP(nr, BITS_PER_BYTE * sizeof(long))
+
 
 /*
  * deal with unrepresentable constant logarithms

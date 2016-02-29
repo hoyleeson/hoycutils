@@ -16,6 +16,8 @@ typedef struct task {
     int taskid;
     int type;
     int priority;
+
+    struct hlist_node hentry;
     task_worker_t *worker;
     struct task_operations *ops;
     uint8_t priv_data[0];
@@ -30,7 +32,7 @@ static inline void init_taskbase_info(task_baseinfo_t *info)
 
 struct task_operations {
     int type;
-    struct listnode node;
+    struct list_head entry;
 
     /* used by node manager only */
     int (*init_assign_pkt)(task_baseinfo_t *base, struct pack_task_assign *pkt);

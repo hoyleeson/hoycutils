@@ -1,3 +1,15 @@
+/*
+ * common/workqueue.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -7,6 +19,7 @@
 #include <common/bitops.h>
 #include <common/workqueue.h>
 #include <common/compiler.h>
+#include <common/fake_atomic.h>
 
 enum {
     /* global_wq flags */
@@ -19,6 +32,9 @@ enum {
     WORKER_DIE      = 1 << 1,   /* die die die */
     WORKER_IDLE     = 1 << 2,   /* is idle */
     WORKER_PREP     = 1 << 3,   /* preparing to run works */
+    WORKER_CPU_INTENSIVE = 1 << 4,  /* cpu intensive */
+
+    WORKER_NOT_RUNNING  = WORKER_PREP | WORKER_CPU_INTENSIVE,
 
     BUSY_WORKER_HASH_ORDER  = 6,        /* 64 pointers */
     BUSY_WORKER_HASH_SIZE   = 1 << BUSY_WORKER_HASH_ORDER,
@@ -74,7 +90,7 @@ struct worker {
     unsigned int		flags;		/* X: flags */
 
     pthread_t 			task;		/* I: worker task */
-    wait_queue_head_t   wait;
+    wait_queue_head_t   waitq;
 };
 
 /*
@@ -89,6 +105,7 @@ struct global_wq {
 
     int			nr_workers;	/* L: total number of workers */
     int			nr_idle;	/* L: currently idle ones */
+    int			nr_running;	/* L: currently running ones */
 
     /* workers are chained either in the idle_list or busy_hash */
     struct list_head	idle_list;	/* X: list of idle workers */
@@ -135,14 +152,14 @@ static inline struct global_wq *get_global_wq(void)
 static inline void set_work_wq(struct work_struct *work, 
         struct workqueue_struct *wq, unsigned long extra_flags)
 {
-    work->data = (unsigned long)wq |
-        WORK_STRUCT_PENDING | (extra_flags & WORK_STRUCT_FLAG_MASK);
+    fake_atomic_long_set(&work->data, 
+            (long)wq | WORK_STRUCT_PENDING | (extra_flags & WORK_STRUCT_FLAG_MASK));
 }
 
 
 static inline struct workqueue_struct *get_work_wq(struct work_struct *work)
 {
-    return (void *)(work->data & WORK_STRUCT_WQ_DATA_MASK);
+    return (void *)(fake_atomic_long_get(&work->data) & WORK_STRUCT_WQ_DATA_MASK);
 }
 
 
@@ -151,10 +168,9 @@ static inline struct workqueue_struct *get_work_wq(struct work_struct *work)
  * worker pool is managed.  Unless noted otherwise, these functions
  * assume that they're being called with gwq->lock held.
  */
-
 static bool __need_more_worker(struct global_wq *gwq)
 {
-    return !gwq->nr_idle || (gwq->flags & GWQ_HIGHPRI_PENDING);
+    return !gwq->nr_running || (gwq->flags & GWQ_HIGHPRI_PENDING);
 }
 
 /*
@@ -165,6 +181,93 @@ static bool need_more_worker(struct global_wq *gwq)
 {
     return !list_empty(&gwq->worklist) && __need_more_worker(gwq);
 }
+
+
+/* Return the first worker.  Safe with preemption disabled */
+static struct worker *first_worker(struct global_wq *gwq)
+{
+    if (unlikely(list_empty(&gwq->idle_list)))
+        return NULL;
+
+    return list_first_entry(&gwq->idle_list, struct worker, entry);
+}
+
+
+/**
+ * wake_up_worker - wake up an idle worker
+ * @gwq: gwq to wake worker for
+ *
+ * Wake up the first idle worker of @gwq.
+ *
+ * CONTEXT:
+ */
+static void wake_up_worker(struct global_wq *gwq)
+{
+    struct worker *worker = first_worker(gwq);
+
+    if (likely(worker))
+        wake_up(&worker->waitq);
+}
+
+
+/**
+ * worker_set_flags - set worker flags and adjust nr_running accordingly
+ * @worker: self
+ * @flags: flags to set
+ * @wakeup: wakeup an idle worker if necessary
+ *
+ * Set @flags in @worker->flags and adjust nr_running accordingly.  If
+ * nr_running becomes zero and @wakeup is %true, an idle worker is
+ * woken up.
+ *
+ * CONTEXT:
+ * pthread_mutex_lock(gwq->lock)
+ */
+static inline void worker_set_flags(struct worker *worker, unsigned int flags)
+{
+    struct global_wq *gwq = worker->gwq;
+
+    /*
+     * If transitioning into NOT_RUNNING, adjust nr_running and
+     * wake up an idle worker as necessary if requested by
+     * @wakeup.
+     */
+    if ((flags & WORKER_NOT_RUNNING) &&
+        !(worker->flags & WORKER_NOT_RUNNING)) {
+
+        gwq->nr_running--;
+    }
+
+    worker->flags |= flags;
+}
+
+/**
+ * worker_clr_flags - clear worker flags and adjust nr_running accordingly
+ * @worker: self
+ * @flags: flags to clear
+ *
+ * Clear @flags in @worker->flags and adjust nr_running accordingly.
+ *
+ * CONTEXT:
+ * pthread_mutex_lock(gwq->lock)
+ */
+static inline void worker_clr_flags(struct worker *worker, unsigned int flags)
+{
+    struct global_wq *gwq = worker->gwq;
+    unsigned int oflags = worker->flags;
+
+    worker->flags &= ~flags;
+
+    /*
+     * If transitioning out of NOT_RUNNING, increment nr_running.  Note
+     * that the nested NOT_RUNNING is not a noop.  NOT_RUNNING is mask
+     * of multiple flags, not a single flag.
+     */
+    if ((flags & WORKER_NOT_RUNNING) && (oflags & WORKER_NOT_RUNNING))
+        if (!(worker->flags & WORKER_NOT_RUNNING))
+            gwq->nr_running++;
+}
+
 
 /*
  * busy_worker_head - return the busy hash head for a work
@@ -301,33 +404,6 @@ static inline struct list_head *gwq_determine_ins_pos(struct global_wq *gwq,
 }
 
 
-/* Return the first worker.  Safe with preemption disabled */
-static struct worker *first_worker(struct global_wq *gwq)
-{
-    if (unlikely(list_empty(&gwq->idle_list)))
-        return NULL;
-
-    return list_first_entry(&gwq->idle_list, struct worker, entry);
-}
-
-
-/**
- * wake_up_worker - wake up an idle worker
- * @gwq: gwq to wake worker for
- *
- * Wake up the first idle worker of @gwq.
- *
- * CONTEXT:
- */
-static void wake_up_worker(struct global_wq *gwq)
-{
-    struct worker *worker = first_worker(gwq);
-
-    if (likely(worker))
-        wake_up(&worker->wait);
-}
-
-
 /**
  * insert_work - insert a work into gwq
  * @wq: wq @work belongs to
@@ -356,6 +432,7 @@ static void insert_work(struct workqueue_struct *wq,
 }
 
 
+
 /**
  * queue_work - queue work on a workqueue
  * @wq: workqueue to use
@@ -366,7 +443,7 @@ static void insert_work(struct workqueue_struct *wq,
  * We queue the work to the CPU on which it was submitted, but if the CPU dies
  * it can be processed by another CPU.
  */
-int queue_work(struct workqueue_struct *wq, struct work_struct *work)
+static void __queue_work(struct workqueue_struct *wq, struct work_struct *work)
 {
     struct list_head *worklist;
     unsigned int work_flags = 0;
@@ -387,8 +464,18 @@ int queue_work(struct workqueue_struct *wq, struct work_struct *work)
     insert_work(wq, work, worklist, work_flags);
 
     pthread_mutex_unlock(&gwq->lock);
+}
 
-    return 0;
+int queue_work(struct workqueue_struct *wq, struct work_struct *work)
+{
+    /*XXX*/
+    int ret = 0; 
+
+    if(!fake_test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))) {
+        __queue_work(wq, work);
+        ret = 1;
+    }
+    return ret;
 }
 
 static void delayed_work_timer_fn(unsigned long __data)
@@ -396,7 +483,7 @@ static void delayed_work_timer_fn(unsigned long __data)
     struct delayed_work *dwork = (struct delayed_work *)__data;
     struct workqueue_struct *wq = get_work_wq(&dwork->work);
 
-    queue_work(wq, &dwork->work);
+    __queue_work(wq, &dwork->work);
 }
 
 
@@ -488,10 +575,8 @@ static bool may_start_working(struct global_wq *gwq)
 /* Do I need to keep working?  Called from currently running workers. */
 static bool keep_working(struct global_wq *gwq)
 {
-
     return !list_empty(&gwq->worklist) &&
-        ((gwq->nr_workers - gwq->nr_idle) <= 1 ||
-         gwq->flags & GWQ_HIGHPRI_PENDING);
+        (gwq->nr_running <= 1 || (gwq->flags & GWQ_HIGHPRI_PENDING));
 }
 
 
@@ -533,7 +618,8 @@ static void worker_enter_idle(struct worker *worker)
     struct global_wq *gwq = worker->gwq;
 
     BUG_ON(worker->flags & WORKER_IDLE);
-    BUG_ON(!list_empty(&worker->entry));
+    BUG_ON(!list_empty(&worker->entry) && 
+            (worker->hentry.next || worker->hentry.pprev));
 
     /* can't use worker_set_flags(), also called from start_worker() */
     worker->flags |= WORKER_IDLE;
@@ -608,6 +694,7 @@ static struct worker *create_worker(struct global_wq *gwq)
     if (!worker)
         goto fail;
 
+    init_waitqueue_head(&worker->waitq);
     worker->gwq = gwq;
     worker->id = gwq->worker_ids++;
 
@@ -640,7 +727,7 @@ static void start_worker(struct worker *worker)
     worker->gwq->nr_workers++;
 
     worker_enter_idle(worker);
-    wake_up(&worker->wait);
+    wake_up(&worker->waitq);
 }
 
 /**
@@ -810,7 +897,7 @@ static void *worker_thread(void *__worker)
 {
     struct worker *worker = __worker;
     struct global_wq *gwq = worker->gwq;
-    DECLARE_WAITQUEUE(wait);
+    struct hlist_head *bwh;
 
 woke_up:
     pthread_mutex_lock(&gwq->lock);
@@ -825,27 +912,56 @@ recheck:
     if (unlikely(!may_start_working(gwq)) && manage_workers(worker))
         goto recheck;
 
+    worker_clr_flags(worker, WORKER_PREP);
     do {
         struct work_struct *work =
             list_first_entry(&gwq->worklist,
                     struct work_struct, entry);
+        struct workqueue_struct *wq = get_work_wq(work);
+
+        bool cpu_intensive = wq->flags & WQ_CPU_INTENSIVE;
+
+        bwh = busy_worker_head(gwq, work);
+        hlist_add_head(&worker->hentry, bwh);
 
         worker->current_work = work;
         worker->current_func = work->func;
-        worker->current_wq = get_work_wq(work);
+        worker->current_wq = wq;
 
         list_del_init(&work->entry);
 
+        /*
+         * CPU intensive works don't participate in concurrency management.
+         * They're the scheduler's responsibility.  This takes @worker out
+         * of concurrency management and the next code block will chain
+         * execution of the pending work items.
+         */
+        if (unlikely(cpu_intensive))
+            worker_set_flags(worker, WORKER_CPU_INTENSIVE);
+
+        if (need_more_worker(gwq))
+            wake_up_worker(gwq);
+
+        work_clear_pending(work);
         pthread_mutex_unlock(&gwq->lock);
 
         worker->current_func(work);
 
         pthread_mutex_lock(&gwq->lock);
+
+        /* clear cpu intensive status */
+        if (unlikely(cpu_intensive))
+            worker_clr_flags(worker, WORKER_CPU_INTENSIVE);
+
+        /* we're done with it, release */
+        hlist_del_init(&worker->hentry);
         worker->current_work = NULL;
         worker->current_func = NULL;
         worker->current_wq = NULL;
 
+        wq->nr_active--;
     } while (keep_working(gwq));
+    worker_set_flags(worker, WORKER_PREP);
 
 sleep:
     if (unlikely(need_to_manage_workers(gwq)) && manage_workers(worker))
@@ -860,9 +976,8 @@ sleep:
      */
     worker_enter_idle(worker);
 
-    add_wait_queue(&worker->wait, &wait);
-
     pthread_mutex_unlock(&gwq->lock);
+    wait_event(worker->waitq, need_more_worker(gwq));
 
     goto woke_up;
 
@@ -877,9 +992,12 @@ struct workqueue_struct *alloc_workqueue(int max_active, unsigned int flags)
     if(!wq)
         return NULL;
 
+    max_active = max_active ?: WQ_DFL_ACTIVE;
+
     wq->flags = flags;
     wq->max_active = max_active;
     wq->nr_active = 0;
+    wq->gwq = get_global_wq();
 
     INIT_LIST_HEAD(&wq->delayed_works);
 

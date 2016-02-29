@@ -1,5 +1,3 @@
-
-noinst_PROGRAMS = samples
-samples_SOURCES = client_sample.c
-samples_LDADD = -L./lib/ -lclient
-
+samplesdir = $(pkgdatadir)/samples
+samples_DATA = readme.txt
+EXTRA_DIST = $(samples_DATA)

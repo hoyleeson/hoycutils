@@ -1,3 +1,15 @@
+/*
+ * common/hbeat.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdio.h>
 
 #include <common/timer.h>
@@ -31,10 +43,10 @@ void hbeat_rm_from_god(hbeat_god_t *god, hbeat_node_t *hbeat)
 
 void hbeat_god_handle(unsigned long data)
 {
-    hbeat_node_t *hbeat;
+    hbeat_node_t *hbeat, *tmp;
     hbeat_god_t *god = (hbeat_god_t *)data;
 
-    list_for_each_entry(hbeat, &god->list, node) {
+    list_for_each_entry_safe(hbeat, tmp, &god->list, node) {
         hbeat->count--;
 
         if(hbeat->count <= 0) {

@@ -1,3 +1,15 @@
+/*
+ * include/common/wait.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_WAIT_H_
 #define _COMMON_WAIT_H_
 
@@ -27,7 +39,7 @@ struct __wait_queue_head {
 typedef struct __wait_queue_head wait_queue_head_t;
 
 #define __WAITQUEUE_INITIALIZER(name) {				\
-	.done 		= COMPLETION_INITIALIZER, 	\
+	.done 		= COMPLETION_INITIALIZER((name).done), 	\
 	.func		= default_wake_function,	\
 	.task_list	= { NULL, NULL } }
 
@@ -50,6 +62,7 @@ static inline int waitqueue_active(wait_queue_head_t *q)
 	return !list_empty(&q->task_list);
 }
 
+void init_waitqueue_head(wait_queue_head_t *q);
 
 extern void add_wait_queue(wait_queue_head_t *q, wait_queue_t *wait);
 extern void add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t *wait);
@@ -106,7 +119,7 @@ do {									\
 		prepare_to_wait(&wq, &__wait);	\
 		if (condition)					\
 			break;						\
-		wait_for_completion();			\
+		wait_for_completion(&__wait.done);			\
 	}								\
 	finish_wait(&wq, &__wait);			\
 } while (0)
@@ -177,7 +190,7 @@ do {									\
 		prepare_to_wait_exclusive(&wq, &__wait);	\
 		if (condition)					\
 			break;						\
-		wait_for_completion();			\
+		wait_for_completion(&__wait.done);			\
 	}								\
 	finish_wait(&wq, &__wait);			\
 } while (0)
@@ -201,7 +214,7 @@ int autoremove_wake_function(wait_queue_t *wait, int sync);
 
 #define DEFINE_WAIT_FUNC(name, function)				\
 	wait_queue_t name = {						\
-		.done 		= COMPLETION_INITIALIZER, 	\
+		.done 		= COMPLETION_INITIALIZER((name).done), 	\
 		.func		= function,				\
 		.task_list	= LIST_HEAD_INIT((name).task_list),	\
 	}

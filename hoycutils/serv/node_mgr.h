@@ -3,10 +3,11 @@
 
 #include <stdint.h>
 #include <pthread.h>
-#include <common/list.h>
-#include <common/wait.h>
-#include <common/iohandler.h>
 #include <arpa/inet.h>
+
+#include <common/list.h>
+#include <common/iowait.h>
+#include <common/ioasync.h>
 
 #include "task.h"
 
@@ -15,26 +16,26 @@ typedef struct _node_info node_info_t;
 
 struct _node_info {
     int fd;
-    ioasync_t *hand;
+    iohandler_t *hand;
+    iowait_t waits;
     int nextseq;
-    response_wait_t waits;
     int task_count;
     int priority;
 
-    struct listnode node;
+    struct list_head entry;
     struct sockaddr_in addr;
     node_mgr_t *mgr;
 
-    struct listnode tasklist;
+    struct list_head tasklist;
     pthread_mutex_t lock;
 };
 
 struct _node_mgr {
     int taskids;
     int node_count;
-    ioasync_t *hand;
+    iohandler_t *hand;
 
-    struct listnode nodelist;
+    struct list_head nodelist;
     pthread_mutex_t lock;
 };
 
@@ -47,15 +48,13 @@ typedef struct _task_handle {
     struct task_operations *ops;
 
     node_info_t *node;
-    struct listnode n;
+    struct list_head entry;
 } task_handle_t;
-
 
 node_mgr_t *node_mgr_init(void);
 task_handle_t *nodemgr_task_assign(node_mgr_t *mgr, int type, int priority, task_baseinfo_t *base);
 int nodemgr_task_reclaim(node_mgr_t *mgr, task_handle_t *task, task_baseinfo_t *base);
 int nodemgr_task_control(node_mgr_t *mgr, task_handle_t *task, int opt, task_baseinfo_t *base);
-
 
 #endif
 

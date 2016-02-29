@@ -1,7 +1,10 @@
 
-noinst_HEADERS = log.h completion.h bug.h common.h list.h workqueue.h types.h configs.h \
-				 fifo.h utils.h packet.h timer.h mempool.h poller.h ioasync.h bsearch.h \
-				 compiler.h compiler-gcc.h rbtree.h hbeat.h queue.h data_frag.h sizes.h \
-				 fake_atomic.h hash.h bitops.h
+noinst_HEADERS = core.h types.h compiler.h compiler-gcc.h sizes.h bitops.h bug.h log.h \
+				 list.h rbtree.h idr.h bsearch.h fifo.h wait.h notifier.h completion.h \
+				 utils.h common.h mempool.h memsizes.h workqueue.h timer.h netsock.h \
+				 hash.h poller.h ioasync.h hbeat.h queue.h packet.h pack_head.h \
+				 configs.h iowait.h fake_atomic.h ethtools.h data_frag.h sockets.h \
+				 init.h 
+				 
 
 

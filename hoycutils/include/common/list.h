@@ -1,8 +1,20 @@
+/*
+ * include/common/list.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_LIST_H_
 #define _COMMON_LIST_H_
 
 #include <stddef.h>
-#include <common/common.h>
+#include <common/core.h>
 
 #define LIST_POISON1  ((void *) 0x00100100)
 #define LIST_POISON2  ((void *) 0x00200200)

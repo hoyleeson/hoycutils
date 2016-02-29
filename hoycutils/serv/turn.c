@@ -7,8 +7,9 @@
 #include <errno.h>
 
 #include <common/log.h>
-#include <common/pack.h>
-#include <common/wait.h>
+#include <common/packet.h>
+#include <common/pack_head.h>
+#include <common/iowait.h>
 #include <arpa/inet.h>
 
 #include <protos.h>
@@ -85,7 +86,7 @@ static int init_turn_task_assign(task_baseinfo_t *base,
     ta->cli_count = group->users;
 
     /* Usually, Only creater. */
-    list_for_each_entry(user, &group->userlist, node) {
+    list_for_each_entry(user, &group->userlist, entry) {
         if(i >= ta->cli_count)
             fatal("group count bug.\n");
 
@@ -236,8 +237,6 @@ static int turn_task_handle(task_t *task, struct pack_task_req *pack, void *from
     int i;
     void *data;
     struct turn_task *ttask;
-    struct sockaddr_in dst_addr[GROUP_MAX_USER];
-    int dst_count = 0;
 
     ttask = (struct turn_task *)&task->priv_data;
 
@@ -263,16 +262,16 @@ static int turn_task_handle(task_t *task, struct pack_task_req *pack, void *from
         if(ttask->cli[i].state != STATE_RUNNING)
             continue;
 
-       dst_addr[dst_count++] = ttask->cli[i].addr;
+       task_worker_pkt_get(task, data);
+       task_worker_pkt_sendto(task, MSG_TURN_PACK, 
+            data, pack->datalen, (struct sockaddr *)&ttask->cli[i].addr);
 
 /*
  *     logd("[%d] turn pack to user:%d, addr:%s, port:%d\n", i, ttask->cli[i].userid, 
  *               inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
  */
     }
-
-    task_worker_pkt_multicast(task, MSG_TURN_PACK, 
-            data, pack->datalen, (struct sockaddr *)&dst_addr, dst_count);
+    task_worker_pkt_free(task, data);
 
     return 0;
 }

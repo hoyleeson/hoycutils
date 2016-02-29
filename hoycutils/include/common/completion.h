@@ -1,3 +1,17 @@
+/*
+ * include/common/completion.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ * Atomic wait-for-completion handler data structures.
+ *
+ */
+
 #ifndef _COMMON_COMPLETION_H_
 #define _COMMON_COMPLETION_H_
 
@@ -22,7 +36,7 @@ struct completion {
 	pthread_cond_t cond;
 };
 
-#define COMPLETION_INITIALIZER { 	\
+#define COMPLETION_INITIALIZER(work) { 	\
 	.done = 0, 	\
 	.lock = PTHREAD_MUTEX_INITIALIZER, \
 	.cond = PTHREAD_COND_INITIALIZER }
@@ -39,7 +53,7 @@ struct completion {
  * variables.
  */
 #define DECLARE_COMPLETION(work) \
-	struct completion work = COMPLETION_INITIALIZER
+	struct completion work = COMPLETION_INITIALIZER(work)
 
 /**
  * init_completion - Initialize a dynamically allocated completion

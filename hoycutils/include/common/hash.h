@@ -1,8 +1,18 @@
+/*
+ * include/common/hash.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_HASH_H_
 #define _COMMON_HASH_H_
 
-/* Fast hashing routine for ints,  longs and pointers.
-   (C) 2002 William Lee Irwin III, IBM */
 
 /*
  * Knuth recommends primes in approximately golden ratio to the maximum
@@ -14,7 +24,7 @@
  * them can use shifts and additions instead of multiplications for
  * machines where multiplications are slow.
  */
-
+#include <common/types.h>
 #include <asm/types.h>
 
 /* 2^31 + 2^29 - 2^25 + 2^22 - 2^19 - 2^16 + 1 */

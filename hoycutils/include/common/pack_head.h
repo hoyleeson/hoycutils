@@ -1,7 +1,22 @@
+/*
+ * include/common/pack_head.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_PACK_HEAD_H_
 #define _COMMON_PACK_HEAD_H_
 
 #include <stdint.h>
+
+#define PROTOS_MAGIC        (0x2016)	
+#define PROTOS_VERSION      (1)
 
 typedef struct _pack_header {
     uint16_t magic;

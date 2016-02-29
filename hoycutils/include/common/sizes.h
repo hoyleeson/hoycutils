@@ -1,10 +1,15 @@
 /*
- * include/linux/sizes.h
+ * include/common/common.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
  */
+
 #ifndef _COMMON_SIZES_H_
 #define _COMMON_SIZES_H_
 
@@ -44,4 +49,4 @@
 #define SZ_1G				0x40000000
 #define SZ_2G				0x80000000
 
-#endif /* __LINUX_SIZES_H__ */
+#endif /* _COMMON_SIZES_H_ */

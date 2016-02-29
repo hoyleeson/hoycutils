@@ -46,7 +46,7 @@ int cli_callback(int event, void *arg1, void *arg2)
             int ret;
             FILE *fp;
             char *data = (char *)arg1;
-            int len = (int)arg2;
+            int len = (int)((long)arg2);
             int seq = (fileseq++) % 200;
 
             printf("* ");
@@ -127,7 +127,7 @@ int main(int argc, char **argv)
         len = fread(imgbuf, 1, DATA_MAX_LEN, fp);
         client_send_state_img(imgbuf, len);
         fclose(fp);
-        usleep(1);
+        sleep(1);
     }
 
     return 0;

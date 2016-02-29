@@ -1,12 +1,25 @@
+/*
+ * common/mempool.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
 
-#include <common/common.h>
+#include <common/core.h>
 #include <common/types.h>
 #include <common/log.h>
 #include <common/bsearch.h>
+#include <common/compiler.h>
 #include <common/mempool.h>
 
 struct mempool {
@@ -55,7 +68,7 @@ mempool_t *mempool_create(int block_size, int init_count, int limited)
 
         for(i=0 ; i<init_count ; i++) {
             b = (struct block *) (pool->buf + i * block_size);
-            list_add_tail(&b->free, &pool->free_list);
+            list_add(&b->free, &pool->free_list);
         }
     }
 
@@ -93,33 +106,35 @@ void *mempool_alloc(mempool_t *pool)
     }
 
     if(l) {
-        b = list_entry(l, struct block, free);
         list_del(l);
+        b = list_entry(l, struct block, free);
     }
 
-    pthread_mutex_unlock(&pool->lock);
-
-    if( !b ) {
-        if(pool->limited)
+    if(unlikely(!b)) {
+        if(pool->limited) {
+            pthread_mutex_unlock(&pool->lock);
             return NULL;
-        else {
+        } else {
             int c;
             b = (struct block *) malloc(pool->bsize);
             pool->dynamic_used++;
             c = ++pool->count;
-            if( (c & ((1<<9)-1)) == 0 ) {
+            if( (c & ((1<<10)-1)) == 0 ) {
                 logw("hitting %d blocks\n", c);
             }
         }
     }
 
     pool->used++;
+
+    pthread_mutex_unlock(&pool->lock);
+
     return block_data(b);
 }
 
 static inline bool is_dynamic_mem(mempool_t *pool, void *buf) {
-    return !(((buf - (void*)pool->buf) > 0) &&
-            ((((void*)pool->buf + pool->bsize*pool->init_count) - buf) >= 0));
+    return !(((buf - (void*)pool->buf) >= 0) &&
+            ((((void*)pool->buf + pool->bsize*pool->init_count) - buf) > 0));
 }
 
 static bool mempool_needed_shrink(mempool_t *pool) 
@@ -129,9 +144,8 @@ static bool mempool_needed_shrink(mempool_t *pool)
 
     free = pool->count - pool->used;
     dynamic_free = (pool->count - pool->init_count) - pool->dynamic_used;
-
-    return !!((free > pool->init_count) && 
-            (free - dynamic_free) > (pool->init_count >> 2) + 8);
+    return !!((free > pool->init_count * 3) && 
+            (dynamic_free > pool->init_count));
 }
 
 void mempool_shrink(mempool_t *pool) 
@@ -147,14 +161,17 @@ void mempool_shrink(mempool_t *pool)
     dynamic_free = (pool->count - pool->init_count) - pool->dynamic_used;
     shrink = min(shrink, dynamic_free);
 
-    if(shrink <= 0)
+    if(shrink <= 0) {
+        pthread_mutex_unlock(&pool->lock);
         return;
+    }
 
     list_for_each_safe(l, tmp, &pool->dynamic_free_list) {
         b = list_entry(l, struct block, free);
         list_del(l);
 
         free(b);
+        pool->count--;
 
         if(--shrink == 0)
             break;
@@ -170,10 +187,11 @@ void mempool_free(mempool_t *pool, void *buf)
     pthread_mutex_lock(&pool->lock);
 
     if(is_dynamic_mem(pool, buf)) {
-        list_add(&b->free, &pool->dynamic_free_list);
+        list_add_tail(&b->free, &pool->dynamic_free_list);
         pool->dynamic_used--;
-    } else
-        list_add(&b->free, &pool->free_list);
+    } else {
+        list_add_tail(&b->free, &pool->free_list);
+    }
 
     pool->used--;
 
@@ -192,7 +210,7 @@ struct cache_sizes {
 
 static struct cache_sizes cachesizes[] = {
 #define CACHE(x, n)  { .cs_size = (x), .cs_count = (n) },
-#include "memsizes.h"
+#include <common/memsizes.h>
     CACHE(ULONG_MAX, 0)
 #undef CACHE
 };

@@ -1,17 +1,17 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <getopt.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include <protos.h>
+#include <config.h>
 #include <common/log.h>
-#include <common/thr_pool.h>
 #include <common/utils.h>
-#include <common/timer.h>
-#include <common/iohandler.h>
+#include <common/init.h>
 
 #include "serv.h"
 #include "turn.h"
@@ -100,8 +100,8 @@ static void do_help(void)
     int len = 0;
     char buf[1024] = { 0 };
 
-    len += sprintf(buf + len, "Compile Date: %s,Time: %s, Version: %d\n", 
-            __DATE__, __TIME__, SERV_VERSION);
+    len += sprintf(buf + len, "Compile Date: %s,Time: %s, Version: %s\n", 
+            __DATE__, __TIME__, VERSION);
 
     len += sprintf(buf + len, "\n"
             "usage: serv command [command options]\n" 
@@ -118,13 +118,11 @@ static void do_help(void)
     logi("%s\n", buf);
 }
 
-void common_init(void)
+static void command_loop(void) 
 {
-    init_global_thpool();
-
-    iohandler_init();
-    init_task_protocals();
-    timers_init();
+    while(1) {
+        getchar();
+    }
 }
 
 int main(int argc, char **argv)
@@ -142,8 +140,8 @@ int main(int argc, char **argv)
                 chost = optarg;
                 break;
             case 'v':
-                logi("compilation date: %s,time: %s, version: %d\n", 
-                        __DATE__, __TIME__, SERV_VERSION);
+                logi("compilation date: %s,time: %s, version: %s\n", 
+                        __DATE__, __TIME__, VERSION);
                 return 0;
             case 'h':
             default:
@@ -158,6 +156,7 @@ int main(int argc, char **argv)
     signals_init();
 
     common_init();
+    init_task_protocals();
 
     if(mode & SERV_MODE_CENTER_SERV) {
         chost = LOCAL_HOST;
@@ -167,7 +166,8 @@ int main(int argc, char **argv)
     if(mode & SERV_MODE_NODE_SERV)
         node_serv_init(chost);
 
-    iohandler_loop();
+    command_loop();
+
     return 0;
 }
 

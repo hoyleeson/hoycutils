@@ -1,3 +1,15 @@
+/*
+ * common/poller.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdint.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -183,7 +195,8 @@ static void poller_add(struct poller* l, int fd, event_func  func, void*  data)
     ev.data.ptr = hook;
     epoll_ctl(l->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
 
-    l->num_fds += 1;
+    if(!l->num_fds++)
+        wake_up(&l->waitq);
 }
 
 /* unregister a file descriptor and its event handler
@@ -287,6 +300,8 @@ static int poller_exec(struct poller* l) {
     int  n, count;
     struct event_hook* hook;
 
+    wait_event(l->waitq, l->num_fds != 0);
+
     do {
         count = epoll_wait(l->epoll_fd, l->events, l->num_fds, -1);
     } while (count < 0 && errno == EINTR);
@@ -331,7 +346,7 @@ static int poller_exec(struct poller* l) {
         }
 
         hook[0]     = l->hooks[l->num_fds-1];
-        l->num_fds -= 1;
+        l->num_fds--;
         ev.events   = hook->wanted;
         ev.data.ptr = hook;
         epoll_ctl(l->epoll_fd, EPOLL_CTL_MOD, hook->fd, &ev);
@@ -383,14 +398,15 @@ int poller_init(struct poller *l)
     l->hooks    = NULL;
 
     pthread_mutex_init(&l->lock, NULL);
-
+    init_waitqueue_head(&l->waitq);
     ret = socketpair(AF_UNIX, SOCK_DGRAM, 0, l->ctl_socks);
     if (ret < 0) {
-        loge("Error in socketpair(). errno:%d", errno);
+        loge("error in socketpair(). errno:%d.\n", errno);
         return -EINVAL;
     }
 
-    logd("create poller ctl event pipe, sockpair:%d:%d", l->ctl_socks[0], l->ctl_socks[1]);
+    logd("create poller ctl event pipe, sockpair:%d:%d.\n",
+            l->ctl_socks[0], l->ctl_socks[1]);
 
     setsockopt(l->ctl_socks[0], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
     setsockopt(l->ctl_socks[0], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
@@ -399,8 +415,8 @@ int poller_init(struct poller *l)
     fcntl(l->ctl_socks[0], F_SETFL, O_NONBLOCK);
     fcntl(l->ctl_socks[1], F_SETFL, O_NONBLOCK);
 
-    poller_event_add(l, l->ctl_socks[1], (event_func)poller_ctl_event, l);
-    poller_event_enable(l, l->ctl_socks[1], EPOLLIN);
+    poller_add(l, l->ctl_socks[1], (event_func)poller_ctl_event, l);
+    poller_enable(l, l->ctl_socks[1], EPOLLIN);
     l->running = 1;
 
     return 0;
@@ -431,5 +447,4 @@ void poller_free(struct poller*  l)
 {
     xfree(l);
 }
-
 

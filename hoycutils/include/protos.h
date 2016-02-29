@@ -4,9 +4,6 @@
 #include <sys/socket.h>
 #include <stdint.h>
 
-#define SERV_MAGIC 			(0x2016)	
-#define SERV_VERSION 		(1)
-
 #define CLIENT_LOGIN_PORT 	(8123) 	 /* listen by center server. */
 
 #define CLIENT_TASK_PORT 	(8124) 	 /* XXX: listen by client */

@@ -1,8 +1,21 @@
+/*
+ * include/common/workqueue.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_WORK_QUEUE_H_
 #define _COMMON_WORK_QUEUE_H_
 
 #include <common/list.h>
 #include <common/timer.h>
+#include <common/fake_atomic.h>
 
 struct workqueue_struct;
 
@@ -35,7 +48,7 @@ enum {
 struct work_struct {
 	struct list_head entry;
 	work_func_t func;
-	unsigned long data;
+	fake_atomic_long_t data;
 };
 
 struct delayed_work {
@@ -81,7 +94,7 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
 
 #define INIT_WORK(_work, _func)                 \
     do {                                \
-        (_work)->data = 0;   \
+        fake_atomic_long_init(&(_work)->data, 0);   \
         INIT_LIST_HEAD(&(_work)->entry);            \
         PREPARE_WORK((_work), (_func));             \
     } while (0)
@@ -98,7 +111,7 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
  * @work: The work item in question
  */
 #define work_pending(work) \
-    (!!((work)->data & WORK_STRUCT_PENDING_BIT)) 
+    (!!(fake_atomic_long_get(&(work)->data) & WORK_STRUCT_PENDING_BIT)) 
 
 /**
  * delayed_work_pending - Find out whether a delayable work item is currently
@@ -109,8 +122,18 @@ static inline struct delayed_work *to_delayed_work(struct work_struct *work)
     work_pending(&(w)->work)
 
 
-#define create_workqueue(max_active)					\
-    alloc_workqueue((max_active), 0)
+/**
+ * work_clear_pending - for internal use only, mark a work item as not pending
+ * @work: The work item in question
+ */
+#define work_clear_pending(work) \
+    fake_clear_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))
+
+
+struct workqueue_struct *alloc_workqueue(int max_active, unsigned int flags);
+
+#define create_workqueue()	    \
+    alloc_workqueue(1, 0)
 
 /*
  * Workqueue flags and constants.  For details, please refer to
@@ -159,5 +182,7 @@ extern void workqueue_set_max_active(struct workqueue_struct *wq,
 		                     int max_active);
 extern bool workqueue_congested(unsigned int cpu, struct workqueue_struct *wq);
 extern unsigned int work_busy(struct work_struct *work);
+
+int init_workqueues(void);
 
 #endif

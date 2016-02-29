@@ -1,5 +1,5 @@
 
-SUBDIRS = common include client serv configs tests docs
+SUBDIRS = common include serv client configs tests docs
 
 AM_CFLAGS = @GLOBAL_CFLAGS@ -I$(top_srcdir)/include 
 

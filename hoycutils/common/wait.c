@@ -1,7 +1,24 @@
+/*
+ * common/wait.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdlib.h>
 
 #include <common/wait.h>
 
+void init_waitqueue_head(wait_queue_head_t *q)
+{
+	pthread_mutex_init(&q->lock, NULL);
+	INIT_LIST_HEAD(&q->task_list);
+}
 
 void add_wait_queue(wait_queue_head_t *q, wait_queue_t *wait)
 {
@@ -85,6 +102,7 @@ void prepare_to_wait(wait_queue_head_t *q, wait_queue_t *wait)
 {
     wait->flags &= ~WQ_FLAG_EXCLUSIVE;
     pthread_mutex_lock(&q->lock);
+
     if (list_empty(&wait->task_list))
         __add_wait_queue(q, wait);
 

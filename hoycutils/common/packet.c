@@ -1,3 +1,15 @@
+/*
+ * common/packet.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -25,27 +37,28 @@ void free_pack_buf_pool(pack_buf_pool_t *pool)
 }
 
 
-pack_buf_t *alloc_pack_buf(pack_buf_pool_t *pool)
+pack_buf_t *pack_buf_alloc(pack_buf_pool_t *pool)
 {
-    pack_buf_t *buf;
-    buf = mempool_alloc(pool->pool);
+    pack_buf_t *pkb;
+    pkb = mempool_alloc(pool->pool);
 
-    buf->owner = pool;
-    fake_atomic_init(&buf->refcount, 1); 
+    pkb->owner = pool;
+    fake_atomic_init(&pkb->refcount, 1); 
 
-    return buf;
+    return pkb;
 }
 
-pack_buf_t *pack_buf_get(pack_buf_t *buf)
+pack_buf_t *pack_buf_get(pack_buf_t *pkb)
 {
-    fake_atomic_inc(&buf->refcount); 
+    fake_atomic_inc(&pkb->refcount); 
+    return pkb;
 }
 
-void free_pack_buf(pack_buf_t *buf)
+void pack_buf_free(pack_buf_t *pkb)
 {
-    if(fake_atomic_dec_and_test(&buf->refcount)) {
-        pack_buf_pool_t *pool = buf->owner;
-        mempool_free(pool->pool, buf); 
+    if(fake_atomic_dec_and_test(&pkb->refcount)) {
+        pack_buf_pool_t *pool = pkb->owner;
+        mempool_free(pool->pool, pkb); 
     }
 }
 
