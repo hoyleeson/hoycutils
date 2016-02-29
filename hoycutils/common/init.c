@@ -1,5 +1,5 @@
 /*
- * include/common/common.h
+ * common/init.c
  * 
  * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
  *	Copyright (C) 2015-2016 by Hoyleeson.
@@ -10,9 +10,23 @@
  *
  */
 
-#ifndef _COMMON_COMMON_H_
-#define _COMMON_COMMON_H_
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <common/log.h>
+#include <common/utils.h>
+#include <common/timer.h>
+#include <common/ioasync.h>
+#include <common/workqueue.h>
 
 
-#endif
+int common_init(void)
+{
+    init_workqueues();
+    global_ioasync_init();
+    init_timers();
+
+    return 0;
+}
+
 

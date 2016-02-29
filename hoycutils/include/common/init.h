@@ -1,5 +1,5 @@
 /*
- * include/common/common.h
+ * include/common/init.h
  * 
  * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
  *	Copyright (C) 2015-2016 by Hoyleeson.
@@ -10,9 +10,9 @@
  *
  */
 
-#ifndef _COMMON_COMMON_H_
-#define _COMMON_COMMON_H_
+#ifndef _COMMON_INIT_H_
+#define _COMMON_INIT_H_
 
+int common_init();
 
 #endif
-

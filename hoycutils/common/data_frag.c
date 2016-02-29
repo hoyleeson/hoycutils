@@ -1,3 +1,15 @@
+/*
+ * common/data_frag.c
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -151,6 +163,23 @@ static void rm_frag_queue(data_frags_t *frags, frag_queue_t *fq)
     pthread_mutex_unlock(&frags->lock);
 }
 
+static void __attribute__ ((unused)) dump_frag_queue(frag_queue_t *fq)
+{
+    int nextofs = 0;
+    frag_node_t *frag;
+
+    list_for_each_entry_reverse(frag, &fq->list, node) {
+        logi("[%d].\n", frag->frag_ofs);
+    }
+
+    list_for_each_entry_reverse(frag, &fq->list, node) {
+        if(nextofs != frag->frag_ofs) {
+            logi("frag [%d %d] lost.\n", nextofs, frag->frag_ofs);
+            nextofs = frag->frag_ofs + frag->datalen;
+        } else
+            nextofs += frag->datalen;
+    }
+}
 
 static void defrag_timeout_handle(unsigned long data)
 {
@@ -160,6 +189,10 @@ static void defrag_timeout_handle(unsigned long data)
     frags = fq->owner;
 
     logw("defrag timout, seq:%d, (%d times)\n", fq->id, frags->stat_timeout);
+
+#ifdef VDEBUG
+    dump_frag_queue(fq);
+#endif
     rm_frag_queue(fq->owner, fq);
 
     pthread_mutex_lock(&frags->lock);
@@ -248,7 +281,6 @@ static int check_defrag(frag_queue_t *fq)
 
 out:
     return ret;
-
 }
 
 static int data_frag_queue(frag_queue_t *fq, frag_node_t *frag)

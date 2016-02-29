@@ -96,11 +96,15 @@ static void node_hand_fn(void* opaque, uint8_t *data, int len)
 
             pt = (struct pack_task_assign_response *)payload;
             response_post(&node->waits, MSG_TASK_ASSIGN_RESPONSE, pt->taskid, &pt->addr);
-#if 1
-            struct sockaddr_in *addr = (struct sockaddr_in *)&pt->addr;
-            logd("response :task worker(%d) address: %s, port: %d.\n", 
-					pt->taskid, inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+
+#ifdef DDEBUG
+            {
+                struct sockaddr_in *addr = (struct sockaddr_in *)&pt->addr;
+                logd("response :task worker(%d) address: %s, port: %d.\n", 
+                        pt->taskid, inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+            }
 #endif
+
             break;
         }
         default:

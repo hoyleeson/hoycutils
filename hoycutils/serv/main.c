@@ -11,7 +11,7 @@
 #include <config.h>
 #include <common/log.h>
 #include <common/utils.h>
-#include <common/common.h>
+#include <common/init.h>
 
 #include "serv.h"
 #include "turn.h"

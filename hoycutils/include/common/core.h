@@ -1,3 +1,15 @@
+/*
+ * include/common/core.h
+ * 
+ * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _COMMON_CORE_H_
 #define _COMMON_CORE_H_
 
@@ -25,7 +37,6 @@
 #define __ALIGN_MASK(x, mask)	__ALIGN_COMMON_MASK((x), (mask))
 #define PTR_ALIGN(p, a)		((typeof(p))ALIGN((unsigned long)(p), (a)))
 #define IS_ALIGNED(x, a)		(((x) & ((typeof(x))(a) - 1)) == 0)
-
 
 
 #define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))

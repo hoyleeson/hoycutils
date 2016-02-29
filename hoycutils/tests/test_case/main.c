@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include <common/core.h>
-#include <common/common.h>
+#include <common/init.h>
 
 #include "test_case.h"
 
