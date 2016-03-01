@@ -132,6 +132,16 @@ void *mempool_alloc(mempool_t *pool)
     return block_data(b);
 }
 
+
+void *mempool_zalloc(mempool_t *pool)
+{
+    void *ptr;
+
+    ptr = mempool_alloc(pool);
+    memset(ptr, 0, pool->bsize);
+    return ptr;
+}
+
 static inline bool is_dynamic_mem(mempool_t *pool, void *buf) {
     return !(((buf - (void*)pool->buf) >= 0) &&
             ((((void*)pool->buf + pool->bsize*pool->init_count) - buf) > 0));

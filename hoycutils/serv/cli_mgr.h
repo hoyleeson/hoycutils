@@ -1,10 +1,24 @@
+/*
+ * serv/cli_mgr.h
+ * 
+ * 2016-01-05  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _SERV_CLI_MGR_H_
 #define _SERV_CLI_MGR_H_
 
 #include <stdint.h>
 #include <pthread.h>
+
 #include <common/list.h>
 #include <common/ioasync.h>
+#include <common/idr.h>
 #include <common/hbeat.h>
 
 #include <protos.h>
@@ -58,8 +72,8 @@ struct _group_info {
 };
 
 struct _cli_mgr {
-    uint32_t uid_pool; 	/* user id pool */
-    uint32_t gid_pool; 	/* group id pool */
+    struct ida uid_pool; 	/* user id pool */
+    struct ida gid_pool; 	/* group id pool */
     iohandler_t *hand;
 
     struct hlist_head user_map[HASH_USER_CAPACITY];

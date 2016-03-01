@@ -1,3 +1,15 @@
+/*
+ * serv/node_mgr.c
+ * 
+ * 2016-01-05  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #define LOG_TAG     "node_mgr"
 
 #include <stdlib.h>
@@ -168,10 +180,14 @@ static int init_task_assign_pkt(task_handle_t *task, task_baseinfo_t *base,
 
 static uint32_t alloc_taskid(node_mgr_t *mgr)
 {
-    uint32_t id;
+    int ret;
+    int id;
 
     pthread_mutex_lock(&mgr->lock);
-    id = ++mgr->taskids;
+    ida_pre_get(&mgr->taskids);
+    ret = ida_get_new(&mgr->taskids, &id);
+    if(ret)
+        id = ret; 
     pthread_mutex_unlock(&mgr->lock);
 
     return id;
@@ -386,6 +402,7 @@ node_mgr_t *node_mgr_init(void)
             nodemgr_accept_fn, nodemgr_close_fn, nodemgr);
 
     INIT_LIST_HEAD(&nodemgr->nodelist);
+    ida_init(&nodemgr->taskids);
     pthread_mutex_init(&nodemgr->lock, NULL);
 
     return nodemgr;

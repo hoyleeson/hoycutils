@@ -15,16 +15,21 @@
 
 #include <common/log.h>
 #include <common/utils.h>
+#include <common/mempool.h>
 #include <common/timer.h>
 #include <common/ioasync.h>
 #include <common/workqueue.h>
+#include <common/idr.h>
 
 
 int common_init(void)
 {
+    mem_cache_init();
     init_workqueues();
     global_ioasync_init();
     init_timers();
+
+    idr_init_cache();
 
     return 0;
 }

@@ -34,6 +34,9 @@ typedef unsigned long long u64;
 #define BITS_PER_LONG 32
 #endif /* CONFIG_64BIT */
 
+#ifndef BITS_PER_LONG_LONG
+#define BITS_PER_LONG_LONG 64
+#endif
 
 #ifndef bool
 typedef int bool;

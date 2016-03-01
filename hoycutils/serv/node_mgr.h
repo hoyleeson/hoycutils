@@ -1,3 +1,15 @@
+/*
+ * serv/node_mgr.h
+ * 
+ * 2016-01-05  written by Hoyleeson <hoyleeson@gmail.com>
+ *	Copyright (C) 2015-2016 by Hoyleeson.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2.
+ *
+ */
+
 #ifndef _SERV_NODE_MGR_H_
 #define _SERV_NODE_MGR_H_
 
@@ -6,6 +18,7 @@
 #include <arpa/inet.h>
 
 #include <common/list.h>
+#include <common/idr.h>
 #include <common/iowait.h>
 #include <common/ioasync.h>
 
@@ -31,7 +44,7 @@ struct _node_info {
 };
 
 struct _node_mgr {
-    int taskids;
+    struct ida taskids;
     int node_count;
     iohandler_t *hand;
 
