@@ -26,6 +26,7 @@ mempool_t *mempool_create(int block_size, int init_count, int limited);
 void mempool_release(mempool_t *pool);
 
 void *mempool_alloc(mempool_t *pool);
+void *mempool_zalloc(mempool_t *pool);
 void mempool_free(mempool_t *pool, void *buf);
 
 
@@ -42,6 +43,8 @@ struct mem_item {
 #define IS_LIMIT 	(0)
 
 #define mem_entry(b) container_of(b, struct mem_item, data)
+
+int mem_cache_init(void);
 
 void *__mm_alloc(int size, int node);
 void __mm_free(void *ptr, int node);

@@ -20,6 +20,7 @@
 
 #include <common/types.h>
 #include <common/bitops.h>
+#include <common/bitmap.h>
 
 /*
  * We want shallower trees and thus more bits covered at each layer.  8
@@ -36,11 +37,8 @@ struct idr_layer {
 	int			layer;	/* distance from leaf */
 	struct idr_layer *ary[1<<IDR_BITS];
 	int			count;	/* When zero, we can release it */
-	union {
-		/* A zero bit means "space here" */
-		DECLARE_BITMAP(bitmap, IDR_SIZE);
-		struct rcu_head		rcu_head;
-	};
+
+    DECLARE_BITMAP(bitmap, IDR_SIZE);
 };
 
 struct idr {
@@ -58,6 +56,23 @@ struct idr {
 	.lock			= __SPIN_LOCK_UNLOCKED(name.lock),	\
 }
 #define DEFINE_IDR(name)	struct idr name = IDR_INIT(name)
+
+
+/*XXX*/
+#define IDR_INIT_POINTER(p, v) do { \
+    p = v;  \
+} while(0)
+
+#define idr_assign_pointer(p, v) do { \
+    barrier();      \
+    p = v;          \
+} while(0)
+
+#define idr_dereference_raw(p)  \
+({          \
+    p;      \
+})
+
 
 /**
  * DOC: idr sync
@@ -101,7 +116,6 @@ bool idr_is_empty(struct idr *idp);
  */
 static inline void idr_preload_end(void)
 {
-	preempt_enable();
 }
 
 /**
@@ -118,10 +132,10 @@ static inline void idr_preload_end(void)
  */
 static inline void *idr_find(struct idr *idr, int id)
 {
-	struct idr_layer *hint = rcu_dereference_raw(idr->hint);
+	struct idr_layer *hint = idr_dereference_raw(idr->hint);
 
 	if (hint && (id & ~IDR_MASK) == hint->prefix)
-		return rcu_dereference_raw(hint->ary[id & IDR_MASK]);
+		return idr_dereference_raw(hint->ary[id & IDR_MASK]);
 
 	return idr_find_slowpath(idr, id);
 }

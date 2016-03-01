@@ -265,7 +265,7 @@ static int data_frag_insert(frag_queue_t *fq, frag_node_t *frag)
     return 0;
 }
 
-static int check_defrag(frag_queue_t *fq) 
+static int __attribute__((warn_unused_result)) check_defrag(frag_queue_t *fq) 
 {
     int ret = 0;
     int nextofs = 0;

@@ -13,7 +13,12 @@
 #ifndef _COMMON_COMPILER_GCC_H_
 #define _COMMON_COMPILER_GCC_H_
 
-//#define __always_inline     inline __attribute__((always_inline))
+#if 0
+/* defined in sys/cdefs.h */
+#define __always_inline     inline __attribute__((always_inline))
+#endif
+
+#define barrier() __asm__ __volatile__("": : :"memory")
 
 #endif
 
