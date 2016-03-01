@@ -18,6 +18,7 @@
 #include <arpa/inet.h>
 
 #include <common/list.h>
+#include <common/idr.h>
 #include <common/iowait.h>
 #include <common/ioasync.h>
 
@@ -43,7 +44,7 @@ struct _node_info {
 };
 
 struct _node_mgr {
-    int taskids;
+    struct ida taskids;
     int node_count;
     iohandler_t *hand;
 

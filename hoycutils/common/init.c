@@ -19,6 +19,7 @@
 #include <common/timer.h>
 #include <common/ioasync.h>
 #include <common/workqueue.h>
+#include <common/idr.h>
 
 
 int common_init(void)
@@ -27,6 +28,8 @@ int common_init(void)
     init_workqueues();
     global_ioasync_init();
     init_timers();
+
+    idr_init_cache();
 
     return 0;
 }

@@ -73,15 +73,48 @@ static void cli_mgr_send_ack(cli_mgr_t *cm, pack_head_t *head)
 
 }
 
-static inline int cli_mgr_alloc_uid(cli_mgr_t *cm)
+static int cli_mgr_alloc_uid(cli_mgr_t *cm)
 {
-    return cm->uid_pool++;
+    int ret;
+    int id;
+
+    pthread_mutex_lock(&cm->lock);
+    ida_pre_get(&cm->uid_pool);
+    ret = ida_get_new(&cm->uid_pool, &id);
+    if(ret)
+        id = ret;
+    pthread_mutex_unlock(&cm->lock);
+
+    return id;
 }
 
-static inline int cli_mgr_alloc_gid(cli_mgr_t *cm)
+static inline void cli_mgr_free_uid(cli_mgr_t *cm, int id)
 {
-    return cm->gid_pool++;
+    ida_remove(&cm->uid_pool, id);
 }
+
+
+static int cli_mgr_alloc_gid(cli_mgr_t *cm)
+{
+    int ret;
+    int id;
+
+    pthread_mutex_lock(&cm->lock);
+    ida_pre_get(&cm->gid_pool);
+    ret = ida_get_new(&cm->gid_pool, &id);
+    if(ret)
+        id = ret;
+    pthread_mutex_unlock(&cm->lock);
+
+    return id;
+}
+
+
+static inline void cli_mgr_free_gid(cli_mgr_t *cm, int id)
+{
+    ida_remove(&cm->gid_pool, id);
+}
+
 
 static int cli_ack_handle(cli_mgr_t *cm, uint16_t seqnum)
 {
@@ -258,6 +291,8 @@ static int cmd_logout_handle(cli_mgr_t *cm, uint32_t uid)
     }
 
     hbeat_rm_from_god(&cm->hbeat_god, &uinfo->hbeat);
+
+    cli_mgr_free_uid(cm, uid);
     free(uinfo);
     return 0;
 }
@@ -377,6 +412,7 @@ static int cmd_delete_group_handle(cli_mgr_t *cm, struct pack_del_group *pr)
     if(ret)
         logw("turn task reclaim fail.\n");
 
+    cli_mgr_free_gid(cm, ginfo->groupid);
     free(ginfo);
     return 0;
 }
@@ -602,8 +638,9 @@ cli_mgr_t *cli_mgr_init(node_mgr_t *nodemgr)
     if(!cm)
         return NULL;
 
-    cm->uid_pool = ID_FRIST_NUM;
-    cm->gid_pool = ID_FRIST_NUM;
+    ida_init(&cm->uid_pool);
+    ida_init(&cm->gid_pool);
+
     cm->user_count = 0;
     cm->group_count = 0;
     cm->nextseq = 0;

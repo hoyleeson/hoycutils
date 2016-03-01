@@ -9,6 +9,7 @@
 
 #include <common/bitmap.h>
 #include <common/bitops.h>
+#include <common/non-atomic.h>
 #include <common/bug.h>
 
 
@@ -415,9 +416,9 @@ void bitmap_remap(unsigned long *dst, const unsigned long *src,
 		int n = bitmap_pos_to_ord(old, oldbit, nbits);
 
 		if (n < 0 || w == 0)
-			set_bit(oldbit, dst);	/* identity map */
+			__set_bit(oldbit, dst);	/* identity map */
 		else
-			set_bit(bitmap_ord_to_pos(new, n % w, nbits), dst);
+			__set_bit(bitmap_ord_to_pos(new, n % w, nbits), dst);
 	}
 }
 
@@ -581,7 +582,7 @@ void bitmap_onto(unsigned long *dst, const unsigned long *orig,
 	for_each_set_bit(n, relmap, bits) {
 		/* m == bitmap_pos_to_ord(relmap, n, bits) */
 		if (test_bit(m, orig))
-			set_bit(n, dst);
+			__set_bit(n, dst);
 		m++;
 	}
 }
@@ -607,7 +608,7 @@ void bitmap_fold(unsigned long *dst, const unsigned long *orig,
 	bitmap_zero(dst, nbits);
 
 	for_each_set_bit(oldbit, orig, nbits)
-		set_bit(oldbit % sz, dst);
+		__set_bit(oldbit % sz, dst);
 }
 
 /*

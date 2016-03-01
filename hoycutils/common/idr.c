@@ -723,10 +723,6 @@ void *idr_replace(struct idr *idp, void *ptr, int id)
 	return old_p;
 }
 
-void idr_init_cache(void)
-{
-	idr_layer_cache = mempool_create(sizeof(struct idr_layer), 256, 0);
-}
 
 /**
  * idr_init - initialize idr handle
@@ -1027,3 +1023,10 @@ void ida_init(struct ida *ida)
 	idr_init(&ida->idr);
 
 }
+
+
+void idr_init_cache(void)
+{
+	idr_layer_cache = mempool_create(sizeof(struct idr_layer), 256, 0);
+}
+
