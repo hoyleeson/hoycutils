@@ -1,5 +1,5 @@
 /*
- * common/commands.c
+ * include/common/console.h
  * 
  * 2016-01-01  written by Hoyleeson <hoyleeson@gmail.com>
  *	Copyright (C) 2015-2016 by Hoyleeson.
@@ -10,10 +10,10 @@
  *
  */
 
-#include <stdio.h>
+#ifndef _COMMON_CONSOLE_H_
+#define _COMMON_CONSOLE_H_
 
+void console_loop(void);
 
-int do_loglevel(int nargs, char **args)
-{
-    return 0;
-}
+#endif
+

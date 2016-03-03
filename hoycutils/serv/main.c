@@ -24,6 +24,7 @@
 #include <common/log.h>
 #include <common/utils.h>
 #include <common/init.h>
+#include <common/console.h>
 
 #include "serv.h"
 #include "turn.h"
@@ -130,12 +131,6 @@ static void do_help(void)
     logi("%s\n", buf);
 }
 
-static void command_loop(void) 
-{
-    while(1) {
-        getchar();
-    }
-}
 
 int main(int argc, char **argv)
 {
@@ -178,7 +173,7 @@ int main(int argc, char **argv)
     if(mode & SERV_MODE_NODE_SERV)
         node_serv_init(chost);
 
-    command_loop();
+    console_loop();
 
     return 0;
 }
