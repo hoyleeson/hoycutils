@@ -25,10 +25,10 @@ void* xrealloc(void*  block, size_t  size);
 int hexdigit( int  c );
 int hex2int(const uint8_t*  data, int  len);
 void int2hex(int  value, uint8_t*  to, int  width);
-int fd_read(int  fd, void*  to, int  len);
-int fd_write(int  fd, const void*  from, int  len);
-void fd_setnonblock(int  fd);
-int fd_accept(int  fd);
+int xread(int  fd, void*  to, int  len);
+int xwrite(int  fd, const void*  from, int  len);
+void setnonblock(int  fd);
+int xaccept(int  fd);
 
 void *read_file(const char *fn, unsigned *_sz);
 time_t gettime(void);

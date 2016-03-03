@@ -55,7 +55,7 @@ static inline void poller_ctl_submit(struct poller* l, void *data, int len)
     int ret;
 
     pthread_mutex_lock(&l->lock);
-    ret = fd_write(l->ctl_socks[0], data, len);
+    ret = xwrite(l->ctl_socks[0], data, len);
     if(ret < 0)
         loge("poller ctl command submit failed(%d).\n", ret);
     pthread_mutex_unlock(&l->lock);
@@ -189,7 +189,7 @@ static void poller_add(struct poller* l, int fd, event_func  func, void*  data)
     hook->wanted  = 0;
     hook->events  = 0;
 
-    fd_setnonblock(fd);
+    setnonblock(fd);
 
     ev.events   = 0;
     ev.data.ptr = hook;
@@ -273,7 +273,7 @@ static void poller_ctl_event(struct poller *l, int events)
         return;
     }
 
-    len = fd_read(l->ctl_socks[1], &ctl, sizeof(poller_ctl_t));
+    len = xread(l->ctl_socks[1], &ctl, sizeof(poller_ctl_t));
     if(len < sizeof(poller_ctl_t))
         return;
 

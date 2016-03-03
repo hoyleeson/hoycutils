@@ -65,6 +65,7 @@ struct handle_ops {
 enum iohandler_type {
     HANDLER_TYPE_NORMAL,
     HANDLER_TYPE_TCP_ACCEPT,
+    HANDLER_TYPE_TCP,
     HANDLER_TYPE_UDP,
 };
 
@@ -186,153 +187,6 @@ void iohandler_sendto(iohandler_t *ioh, const uint8_t *data, int len, struct soc
 }
 
 
-static void iohandler_in_handle_work(struct work_struct *work)
-{
-    struct iopacket *pack;
-    iohandler_t *ioh;
-   
-    ioh = container_of(work, struct iohandler, work); 
-
-    logv("iohandler handle work.\n");
-
-    while(queue_count(ioh->q_in) > 0) {
-        pack = (struct iopacket *)queue_out(ioh->q_in);
-        if(!pack)
-            return;
-
-        if(ioh->h_ops.post) 
-            ioh->h_ops.post(ioh, pack);
-
-        iohandler_pack_free(ioh, pack, 1);
-    }
-}
-
-static void iohandler_in_pack_queue(iohandler_t *ioh, struct iopacket *pack)
-{
-    logv("iohandler receive data. packet queue.\n");
-    queue_in(ioh->q_in, (struct packet *)pack);
-
-    queue_work(ioh->wq, &ioh->work);
-}
-
-static int iohandler_read(iohandler_t* ioh)
-{
-    struct iopacket *pack;
-    pack_buf_t*  pkb;
-
-    pack = iohandler_pack_alloc(ioh, 1);
-    pkb = pack->packet.buf;
-
-    switch(ioh->type) {
-        case HANDLER_TYPE_NORMAL:
-            pkb->len = fd_read(ioh->fd, pkb->data, PACKET_MAX_PAYLOAD);
-            break;
-        case HANDLER_TYPE_UDP:
-        {
-            socklen_t addrlen = sizeof(struct sockaddr_in);
-            bzero(&pack->addr, sizeof(pack->addr));
-            pkb->len = recvfrom(ioh->fd, &pkb->data, PACKET_MAX_PAYLOAD,
-                    0, &pack->addr, &addrlen);
-            break;
-        }
-        case HANDLER_TYPE_TCP_ACCEPT:
-        {
-            int channel;
-            channel = fd_accept(ioh->fd);
-            memcpy(pkb->data, &channel, sizeof(int));
-            pkb->len = sizeof(int);
-            break;
-        }
-        default:
-            pkb->len = -1;
-            break;
-    }
-
-    if(pkb->len < 0)
-        goto fail;
-
-    iohandler_in_pack_queue(ioh, pack);
-    return 0;
-
-fail:
-    loge("iohandler read data failed.\n");
-    iohandler_pack_free(ioh, pack, 1);
-    return -EINVAL;
-}
-
-static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *pkt)
-{
-    int len;
-
-    switch(ioh->type) {
-        case HANDLER_TYPE_NORMAL:
-            {
-                int out_pos = 0;
-                int avail = 0;
-                pack_buf_t *pkb = pkt->packet.buf;
-
-                while(out_pos < pkb->len) {
-                    avail = pkb->len - out_pos;
-
-                    len = fd_write(ioh->fd, (&pkb->data) + out_pos, avail);
-                    if(len < 0) 
-                        goto fail;
-                    out_pos += len;
-                }
-                break;
-            }
-        case HANDLER_TYPE_UDP:
-            {
-                pack_buf_t *pkb = pkt->packet.buf;
-                len = sendto(ioh->fd, &pkb->data, pkb->len, 0, 
-                        &pkt->addr, sizeof(struct sockaddr));
-                if(len < 0)
-                    goto fail;
-                break;
-            }
-        case HANDLER_TYPE_TCP_ACCEPT:
-            BUG();
-        default:
-            goto fail;
-    }
-
-    return 0;
-
-fail:
-    loge("send data fail, ret=%d, droped.\n", len);
-    return -EINVAL;
-}
-
-
-static int iohandler_write(iohandler_t *ioh) 
-{
-    int ret;
-    struct iopacket *pack;
-    ioasync_t *aio = ioh->owner;
-
-    if(queue_count(ioh->q_out) == 0)
-        return 0;
-
-    pack = (struct iopacket *)queue_out(ioh->q_out);
-    if(!pack)
-        return 0;
-
-    logv("iohandler send data.\n");
-
-    pthread_mutex_lock(&ioh->lock);
-    if(queue_count(ioh->q_out) == 0)
-        poller_event_disable(&aio->poller, ioh->fd, EV_WRITE);
-
-    pthread_mutex_unlock(&ioh->lock);
-
-    ret = iohandler_write_packet(ioh, pack);
-
-    iohandler_pack_free(ioh, pack, 1);
-
-    return ret;
-}
-
-
 static void iohandler_close(iohandler_t *ioh)
 {
     ioasync_t *aio = ioh->owner;
@@ -376,6 +230,164 @@ void iohandler_shutdown(iohandler_t *ioh)
         return;
     }
 }
+
+
+static void iohandler_in_handle_work(struct work_struct *work)
+{
+    struct iopacket *pack;
+    iohandler_t *ioh;
+   
+    ioh = container_of(work, struct iohandler, work); 
+
+    logv("iohandler handle work.\n");
+
+    while(queue_count(ioh->q_in) > 0) {
+        pack = (struct iopacket *)queue_out(ioh->q_in);
+        if(!pack)
+            return;
+
+        if(ioh->h_ops.post) 
+            ioh->h_ops.post(ioh, pack);
+
+        iohandler_pack_free(ioh, pack, 1);
+    }
+}
+
+static void iohandler_in_pack_queue(iohandler_t *ioh, struct iopacket *pack)
+{
+    logv("iohandler receive data. packet queue.\n");
+    queue_in(ioh->q_in, (struct packet *)pack);
+
+    queue_work(ioh->wq, &ioh->work);
+}
+
+static int iohandler_read(iohandler_t* ioh)
+{
+    struct iopacket *pack;
+    pack_buf_t*  pkb;
+
+    pack = iohandler_pack_alloc(ioh, 1);
+    pkb = pack->packet.buf;
+
+    switch(ioh->type) {
+        case HANDLER_TYPE_NORMAL:
+        case HANDLER_TYPE_TCP:
+        {
+            pkb->len = xread(ioh->fd, pkb->data, PACKET_MAX_PAYLOAD);
+            break;
+        }
+        case HANDLER_TYPE_UDP:
+        {
+            socklen_t addrlen = sizeof(struct sockaddr_in);
+            bzero(&pack->addr, sizeof(pack->addr));
+            pkb->len = recvfrom(ioh->fd, &pkb->data, PACKET_MAX_PAYLOAD,
+                    0, &pack->addr, &addrlen);
+            break;
+        }
+        case HANDLER_TYPE_TCP_ACCEPT:
+        {
+            int channel;
+            channel = xaccept(ioh->fd);
+            memcpy(pkb->data, &channel, sizeof(int));
+            pkb->len = sizeof(int);
+            break;
+        }
+        default:
+            pkb->len = -1;
+            break;
+    }
+
+    if(pkb->len < 0) {
+        goto fail;
+    } else if((pkb->len == 0) && 
+            (ioh->type && HANDLER_TYPE_TCP)) {
+        iohandler_close(ioh);
+        iohandler_pack_free(ioh, pack, 1);
+        return 0;
+    }
+
+    iohandler_in_pack_queue(ioh, pack);
+    return 0;
+
+fail:
+    loge("iohandler read data failed.\n");
+    iohandler_pack_free(ioh, pack, 1);
+    return -EINVAL;
+}
+
+static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *pkt)
+{
+    int len;
+
+    switch(ioh->type) {
+        case HANDLER_TYPE_NORMAL:
+        case HANDLER_TYPE_TCP:
+        {
+            int out_pos = 0;
+            int avail = 0;
+            pack_buf_t *pkb = pkt->packet.buf;
+
+            while(out_pos < pkb->len) {
+                avail = pkb->len - out_pos;
+
+                len = xwrite(ioh->fd, (&pkb->data) + out_pos, avail);
+                if(len < 0) 
+                    goto fail;
+                out_pos += len;
+            }
+            break;
+        }
+        case HANDLER_TYPE_UDP:
+        {
+            pack_buf_t *pkb = pkt->packet.buf;
+            len = sendto(ioh->fd, &pkb->data, pkb->len, 0, 
+                    &pkt->addr, sizeof(struct sockaddr));
+            if(len < 0)
+                goto fail;
+            break;
+        }
+        case HANDLER_TYPE_TCP_ACCEPT:
+            BUG();
+        default:
+            goto fail;
+    }
+
+    return 0;
+
+fail:
+    loge("send data fail, ret=%d, droped.\n", len);
+    return -EINVAL;
+}
+
+
+static int iohandler_write(iohandler_t *ioh) 
+{
+    int ret;
+    struct iopacket *pack;
+    ioasync_t *aio = ioh->owner;
+
+    if(queue_count(ioh->q_out) == 0)
+        return 0;
+
+    pack = (struct iopacket *)queue_out(ioh->q_out);
+    if(!pack)
+        return 0;
+
+    logv("iohandler send data.\n");
+
+    pthread_mutex_lock(&ioh->lock);
+    if(queue_count(ioh->q_out) == 0)
+        poller_event_disable(&aio->poller, ioh->fd, EV_WRITE);
+
+    pthread_mutex_unlock(&ioh->lock);
+
+    ret = iohandler_write_packet(ioh, pack);
+
+    iohandler_pack_free(ioh, pack, 1);
+
+    return ret;
+}
+
 
 /* iohandler file descriptor event callback for read/write ops */
 static void iohandler_event(void *data, int events)
@@ -498,6 +510,24 @@ iohandler_t *iohandler_accept_create(ioasync_t *aio, int fd,
 
     return ioh;
 }
+
+
+iohandler_t *iohandler_tcp_create(ioasync_t *aio, int fd,
+        void (*handle)(void *, uint8_t *, int), void (*close)(void *), void *priv)
+{
+    iohandler_t *ioh;
+
+    ioh = ioasync_create_context(aio, fd, HANDLER_TYPE_TCP);
+
+    ioh->h_ops.post = iohandler_normal_post;
+    ioh->h_ops.handle = handle;
+    ioh->h_ops.close = close;
+
+    ioh->priv_data = priv;
+
+    return ioh;
+}
+
 
 static void iohandler_udp_post(void* priv, struct iopacket *pkt)
 {

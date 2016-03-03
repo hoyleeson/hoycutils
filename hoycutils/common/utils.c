@@ -34,38 +34,38 @@
 
 void* xalloc(size_t sz)
 {
-    void*  p;
+    void* p;
 
-    if (sz == 0)
+    if(sz == 0)
         return NULL;
 
     p = malloc(sz);
-    if (p == NULL)
+    if(p == NULL)
         fatal("not enough memory");
 
     return p;
 }
 
-void* xzalloc(size_t  sz)
+void* xzalloc(size_t sz)
 {
-    void*  p = xalloc(sz);
+    void* p = xalloc(sz);
     memset(p, 0, sz);
     return p;
 }
 
-void* xrealloc(void*  block, size_t  size)
+void* xrealloc(void* block, size_t size)
 {
-    void*  p = realloc(block, size);
+    void* p = realloc(block, size);
 
-    if (p == NULL && size > 0)
+    if(p == NULL && size > 0)
         fatal("not enough memory");
 
     return p;
 }
 
-int hexdigit( int  c )
+int hexdigit(int c)
 {
-    unsigned  d;
+    unsigned d;
 
     d = (unsigned)(c - '0');
     if (d < 10) return d;
@@ -79,11 +79,11 @@ int hexdigit( int  c )
     return -1;
 }
 
-int hex2int(const uint8_t*  data, int  len)
+int hex2int(const uint8_t* data, int len)
 {
     int  result = 0;
     while (len > 0) {
-        int       c = *data++;
+        int c = *data++;
         unsigned  d;
 
         result <<= 4;
@@ -106,15 +106,15 @@ int hex2int(const uint8_t*  data, int  len)
 
             return -1;
         }
-        while (0);
+        while(0);
 
         result |= d;
         len    -= 1;
     }
-    return  result;
+    return result;
 }
 
-void int2hex(int  value, uint8_t*  to, int  width)
+void int2hex(int value, uint8_t* to, int width)
 {
     int  nn = 0;
     static const char hexchars[16] = "0123456789abcdef";
@@ -124,31 +124,32 @@ void int2hex(int  value, uint8_t*  to, int  width)
     }
 }
 
-int fd_read(int  fd, void*  to, int  len)
+int xread(int fd, void* to, int len)
 {
-    int  ret;
+    int ret;
 
     do {
         ret = read(fd, to, len);
-    } while (ret < 0 && errno == EINTR);
+    } while(ret < 0 && errno == EINTR);
 
     return ret;
 }
 
-int fd_write(int  fd, const void*  from, int  len)
+int xwrite(int fd, const void* from, int len)
 {
-    int  ret;
+    int ret;
 
     do {
         ret = write(fd, from, len);
-    } while (ret < 0 && errno == EINTR);
+    } while(ret < 0 && errno == EINTR);
 
     return ret;
 }
 
-void fd_setnonblock(int  fd)
+void setnonblock(int fd)
 {
-    int  ret, flags;
+    int ret;
+    int flags;
 
     do {
         flags = fcntl(fd, F_GETFD);
@@ -156,7 +157,7 @@ void fd_setnonblock(int  fd)
 
     if (flags < 0) {
         fatal("%s: could not get flags for fd %d: %s",
-                __FUNCTION__, fd, strerror(errno));
+                __func__, fd, strerror(errno));
     }
 
     do {
@@ -165,20 +166,20 @@ void fd_setnonblock(int  fd)
 
     if (ret < 0) {
         fatal("%s: could not set fd %d to non-blocking: %s",
-                __FUNCTION__, fd, strerror(errno));
+                __func__, fd, strerror(errno));
     }
 }
 
 
-int fd_accept(int  fd)
+int xaccept(int fd)
 {
-    struct sockaddr  from;
-    socklen_t        fromlen = sizeof(from);
-    int              ret;
+    int ret;
+    struct sockaddr from;
+    socklen_t fromlen = sizeof(from);
 
     do {
         ret = accept(fd, &from, &fromlen);
-    } while (ret < 0 && errno == EINTR);
+    } while(ret < 0 && errno == EINTR);
 
     return ret;
 }
