@@ -24,6 +24,7 @@
 #include <common/log.h>
 #include <common/utils.h>
 #include <common/init.h>
+#include <common/deamon.h>
 #include <common/console.h>
 
 #include "serv.h"
@@ -39,6 +40,7 @@
 static const struct option longopts[] = {
     {"mode", required_argument, 0, 'm'},
     {"server", required_argument, 0, 's'},
+    {"deamon", 0, 0, 'd'},
     {"version", 0, 0, 'v'},
     {"help", 0, 0, 'h'},
     {0, 0, 0, 0}
@@ -134,17 +136,21 @@ static void do_help(void)
 
 int main(int argc, char **argv)
 {
+    int deamon = 0;
     int opt;
     int mode = SERV_MODE_FULL_FUNC;
     char *chost = LOCAL_HOST;
 
-    while((opt = getopt_long(argc, argv, "m:s:vh", longopts, NULL)) > 0) {
+    while((opt = getopt_long(argc, argv, "m:s:dvh", longopts, NULL)) > 0) {
         switch(opt) {
             case 'm':
                 mode = serv_mode_parse(optarg);
                 break;
             case 's':
                 chost = optarg;
+                break;
+            case 'd':
+                deamon = 1;
                 break;
             case 'v':
                 logi("compilation date: %s,time: %s, version: %s\n", 
@@ -158,6 +164,10 @@ int main(int argc, char **argv)
     }
 
     logi("server running. mode=%d\n", mode);
+
+    if(deamon) {
+        enter_deamon(); 
+    }
 
     umask(0);
     signals_init();
