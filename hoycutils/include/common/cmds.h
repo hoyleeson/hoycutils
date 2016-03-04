@@ -13,10 +13,14 @@
 #ifndef _COMMON_CMDS_H_
 #define _COMMON_CMDS_H_
 
+#include <common/list.h>
+
 struct cmd_tbl_s {
     const char *name;   /* command name*/
     int (*cmd)(int, char **); /* implement function*/
     const char *usage;  /* usage message(short)*/
+
+    struct list_head entry;
 };
 
 typedef struct cmd_tbl_s cmd_tbl_t;
@@ -24,11 +28,13 @@ typedef struct cmd_tbl_s cmd_tbl_t;
 #define CONSOLE_CMD(name, cmd, usage)   \
     { #name, cmd, usage }
 
-#define CMD(name, maxargs, cmd, usage)   \
-    cmd_tbl_t _cmd_##name ={ #name, cmd, usage }
+#define CMD(name, cmd, usage)   \
+    cmd_tbl_t _cmd_##name = { #name, cmd, usage }
 
+void register_cmd(cmd_tbl_t *cmdp);
+void unregister_cmd(cmd_tbl_t *cmdp);
 
-cmd_tbl_t* get_cmd_tbl_list(void);
+int execute_cmds(int argc, char** argv);
 
 #endif
 

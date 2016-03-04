@@ -71,57 +71,12 @@ static int parse_cmds(char *line, char **argv)
     return nargs;
 }
 
-static cmd_tbl_t *find_cmd(cmd_tbl_t* cmd_list, const char *cmd)
-{
-    int n_found = 0;
-    unsigned int len;
-    cmd_tbl_t *cmdp, *cmdp_temp = NULL;
-
-    if(!cmd)
-        return NULL;
-
-    len = strlen(cmd);
-    for(cmdp = cmd_list; cmdp->name != 0; cmdp++) {
-        if(strncmp(cmdp->name, cmd, len) == 0) {
-            if(len == strlen(cmdp->name))
-                return cmdp;
-
-            cmdp_temp = cmdp;
-            n_found++;
-        }
-    }
-
-    if(n_found) {
-        return cmdp_temp;
-    }
-    return NULL;
-}
-
-
-static int execute_cmds(cmd_tbl_t* cmd_list, int argc, char** argv)
-{
-    int ret = -EINVAL;
-    cmd_tbl_t* cmdtp;
-
-    cmdtp = find_cmd(cmd_list, argv[0]);
-    if(!cmdtp)
-        return ret;
-
-    ret = cmdtp->cmd(argc, argv);
-    printf("\n");
-
-    return ret;
-}
-
 void console_loop(void)
 {
     int ret;
     int len;
     char cmd[CMD_MAX_LEN];
     char* cmd_argv[CFG_MAXARGS];
-    cmd_tbl_t *cmd_list;
-
-    cmd_list = get_cmd_tbl_list();
 
     for( ;; ) {
         memset(cmd, 0, CMD_MAX_LEN);
@@ -136,7 +91,7 @@ void console_loop(void)
             continue;
         }
 
-        ret = execute_cmds(cmd_list, ret, cmd_argv);
+        ret = execute_cmds(ret, cmd_argv);
         if(ret) {
             logv("execute cmd failed.\n");
             continue;
