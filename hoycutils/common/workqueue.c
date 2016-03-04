@@ -86,7 +86,7 @@ struct worker {
     struct list_head	scheduled;	/* L: scheduled works XXX*/
     struct global_wq	*gwq;		/* I: the associated gwq */
     /* 64 bytes boundary on 64bit, 32 on 32bit */
-    unsigned long		last_active;	/* L: last active timestamp */
+    uint64_t last_active;	/* L: last active timestamp */
     unsigned int		flags;		/* X: flags */
 
     pthread_t 			task;		/* I: worker task */
@@ -820,7 +820,7 @@ static bool maybe_destroy_workers(struct global_wq *gwq)
 
     while (too_many_workers(gwq)) {
         struct worker *worker;
-        unsigned long expires;
+        uint64_t expires;
 
         worker = list_entry(gwq->idle_list.prev, struct worker, entry);
         expires = worker->last_active + IDLE_WORKER_TIMEOUT;
@@ -1055,7 +1055,7 @@ static void idle_worker_timeout(unsigned long __gwq)
 
     if (too_many_workers(gwq)) {
         struct worker *worker;
-        unsigned long expires;
+        uint64_t expires;
 
         /* idle_list is kept in LIFO order, check the last one */
         worker = list_entry(gwq->idle_list.prev, struct worker, entry);

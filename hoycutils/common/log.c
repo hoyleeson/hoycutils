@@ -15,6 +15,8 @@
 #include <stdarg.h>
 #include <common/log.h>
 
+
+#ifndef ANDROID
 static uint8_t curr_level = LOG_DEFAULT_LEVEL;
 
 void log_init(int level)
@@ -47,3 +49,10 @@ void log_printf(int level, const char *tag, const char *fmt, ...)
     fflush(stdout);
 }
 
+#else
+
+void log_init(int level)
+{
+}
+
+#endif

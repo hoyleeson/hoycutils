@@ -422,7 +422,7 @@ static int cmd_delete_group_handle(cli_mgr_t *cm, struct pack_del_group *pr)
 static int cmd_list_group_handle(cli_mgr_t *cm, struct pack_list_group *pr)
 {
     int i;
-    int index;
+    int index = 0;
     user_info_t *uinfo;
     group_info_t *group;
     group_desc_t *gdest;

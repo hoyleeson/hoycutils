@@ -59,7 +59,7 @@ void *bsearch_edge(const void *key, const void *base, size_t num, size_t size, i
         int (*cmp)(const void *key, const void *elt))
 {
     size_t start = 0, end = num;
-    int result;
+    int result = 0;
 
     while (start < end) {
         size_t mid = start + (end - start) / 2;

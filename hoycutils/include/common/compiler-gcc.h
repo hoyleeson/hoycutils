@@ -13,10 +13,9 @@
 #ifndef _COMMON_COMPILER_GCC_H_
 #define _COMMON_COMPILER_GCC_H_
 
-#if 0
-/* defined in sys/cdefs.h */
+/* defined in sys/cdefs.h __always_inline     */
+#undef __always_inline
 #define __always_inline     inline __attribute__((always_inline))
-#endif
 
 #define barrier() __asm__ __volatile__("": : :"memory")
 

@@ -317,7 +317,7 @@ fail:
 
 static int iohandler_write_packet(iohandler_t *ioh, struct iopacket *pkt)
 {
-    int len;
+    int len = -EINVAL;
 
     switch(ioh->type) {
         case HANDLER_TYPE_NORMAL:

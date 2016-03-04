@@ -8,7 +8,7 @@ autoheader
 libtoolize --automake
 automake --add-missing
 
-if [ -e $INSTAL_DIR ]; then
+if [ ! -e $INSTAL_DIR ]; then
 	mkdir -p $INSTAL_DIR
 fi
 

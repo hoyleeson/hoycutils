@@ -19,6 +19,7 @@
 #include <pthread.h>
 
 #include <common/list.h>
+#include <common/compiler.h>
 
 typedef struct mempool mempool_t;
 
