@@ -12,7 +12,7 @@ if [ -e $INSTAL_DIR ]; then
 	mkdir -p $INSTAL_DIR
 fi
 
-./configure  --enable-verbose --prefix=$INSTAL_DIR --host=i686-linux-androideabi --with-platform=android
+./configure  --enable-debug --enable-verbose --prefix=$INSTAL_DIR --host=i686-linux-androideabi --with-platform=android
 
 make
 
