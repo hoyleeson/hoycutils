@@ -152,7 +152,7 @@ void setnonblock(int fd)
     int flags;
 
     do {
-        flags = fcntl(fd, F_GETFD);
+        flags = fcntl(fd, F_GETFL);
     } while (flags < 0 && errno == EINTR);
 
     if (flags < 0) {
@@ -161,7 +161,7 @@ void setnonblock(int fd)
     }
 
     do {
-        ret = fcntl(fd, F_SETFD, flags | O_NONBLOCK);
+        ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     } while (ret < 0 && errno == EINTR);
 
     if (ret < 0) {
