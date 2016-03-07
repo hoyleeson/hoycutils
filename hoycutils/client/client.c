@@ -711,20 +711,15 @@ static void *client_thread_handle(void *args)
 #endif
 
 
-#define DEFAULT_BUF_SIZE        (32*1024*1024)
 int client_task_start(void)
 {
     int sock;
     struct sockaddr_in addr; 	/* used for debug */
     socklen_t addrlen = sizeof(addr); 	/* used for debug */
     struct client *cli = &_client;
-    int bufsize = DEFAULT_BUF_SIZE;
 
     sock = socket_inaddr_any_server(0, SOCK_DGRAM);
     cli->task.nextseq = 0;
-
-    setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-    setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
 
     cli->task.hand = iohandler_udp_create(get_global_ioasync(), sock, 
             cli_task_handle, cli_task_close, cli);

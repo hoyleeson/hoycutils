@@ -255,7 +255,6 @@ static void task_worker_close(void *opaque)
 
 }
 
-#define DEFAULT_BUF_SIZE        (128*1024*1024)
 static task_worker_t *create_task_worker(node_serv_t *ns)
 {
     int i;
@@ -263,7 +262,6 @@ static task_worker_t *create_task_worker(node_serv_t *ns)
     struct sockaddr_in addr;
     socklen_t addrlen;
     task_worker_t *tworker;
-    int bufsize = DEFAULT_BUF_SIZE;
     char host[20] = {0};
 
     /* XXX FIXME */
@@ -283,9 +281,6 @@ static task_worker_t *create_task_worker(node_serv_t *ns)
 
     /* XXX */
     addr.sin_addr.s_addr = inet_addr(host);
-
-    setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-    setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
 
     tworker = malloc(sizeof(*tworker));
     if(!tworker)
