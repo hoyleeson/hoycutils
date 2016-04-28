@@ -33,8 +33,10 @@ enum netsock_type {
 
 /*connection session unit*/
 struct connection {
-    int sock;       /* used for tcp */
-	struct sockaddr_in sock_addr;   /* used for udp */
+    union {
+        int sock;       /* used for tcp */
+        struct sockaddr_in sock_addr;   /* used for udp */
+    };
 };
 
 
@@ -58,8 +60,8 @@ struct net_packet {
 	struct connection conn;		//Identification data is of who sent
 };
 
-typedef int (*recv_callback)(struct net_packet* pack);	//receive data callback
-typedef void (*err_callback)(int err_code);		//error callback.
+typedef int (*recv_callback)(struct net_packet* pack, void *priv);	//receive data callback
+typedef void (*err_callback)(int err_code, void *priv);		//error callback.
 
 
 struct netsock_args {
@@ -72,10 +74,11 @@ struct netsock_args {
 	uint32_t buf_size;	//receive buffer size.
 	recv_callback recv_cb;
 	err_callback err_cb;
+    void *priv_data;
 };
 
 #define SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, \
-								_listen_port, _buf_size, _recv_cb, _err_cb)	{	\
+								_listen_port, _buf_size, _recv_cb, _err_cb, _priv)	{	\
     .type        = _type,		\
     .is_server   = _is_serv,	\
     .dest_ip     = _dest_ip,	\
@@ -84,12 +87,13 @@ struct netsock_args {
     .buf_size    = _buf_size,	\
     .recv_cb     = _recv_cb,	\
     .err_cb      = _err_cb,	    \
+    .priv_data   = _priv        \
 }
 
 #define DECLARE_SOCKET_ARGS(_name, _type, _is_serv, _dest_ip, _dest_port, \
-							_listen_port, _buf_size, _recv_cb, _err_cb)	\
+							_listen_port, _buf_size, _recv_cb, _err_cb, _priv)	\
 				struct netsock_args _name = \
-					SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, _listen_port, _buf_size)
+					SOCKET_ARGS_INILIALIZER(_type, _is_serv, _dest_ip, _dest_port, _listen_port, _buf_size, recv_cb, _err_cb, _priv)
 
 
 /*

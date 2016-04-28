@@ -222,12 +222,12 @@ static void* dgram_recv_thread(void* arg)
 		nready = select(dgram->sock+1, &rset, NULL, NULL, &timeout);
 		if(nready < 0) {
 			if(nsock->args.err_cb)
-				nsock->args.err_cb(E_SOCKSELECT);
+				nsock->args.err_cb(E_SOCKSELECT, nsock->args.priv_data);
 			break;
 		} else if(nready == 0) {
 			err++;
 			if(err > 5 && nsock->args.err_cb) {
-				nsock->args.err_cb(E_SOCKTIMEOUT);
+				nsock->args.err_cb(E_SOCKTIMEOUT, nsock->args.priv_data);
 				break;
 			}
 			continue;
@@ -236,7 +236,7 @@ static void* dgram_recv_thread(void* arg)
 			if ((buf_len = recvfrom(dgram->sock, pack.data, nsock->args.buf_size, 0, 
 								(struct sockaddr *)&dgram->recv_addr, &cli_len)) < 0) {
 				if(nsock->args.err_cb)
-					nsock->args.err_cb(E_SOCKRECV);
+					nsock->args.err_cb(E_SOCKRECV, nsock->args.priv_data);
 				break;
 			} else {	//recv data success.
 				logd("receive udp data, size=(%d)\n", buf_len);
@@ -245,7 +245,7 @@ static void* dgram_recv_thread(void* arg)
 				pack.conn.sock_addr = dgram->recv_addr;
 
 				if(nsock->args.recv_cb)
-					nsock->args.recv_cb(&pack);	//call the callback function.
+					nsock->args.recv_cb(&pack, nsock->args.priv_data);	//call the callback function.
 			}
 		}
 	}

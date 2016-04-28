@@ -407,7 +407,7 @@ static void* process_connection(void* arg)
             pack.conn.sock = param->sock;
 
             if(nsock->args.recv_cb)
-                nsock->args.recv_cb(&pack);
+                nsock->args.recv_cb(&pack, nsock->args.priv_data);
         }
     }
 
