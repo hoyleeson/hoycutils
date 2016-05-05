@@ -412,7 +412,8 @@ static void* process_connection(void* arg)
     }
 
     logd("tcp socket %d close.\n", param->sock);
-    close(param->sock);
+    if(param->sock > 0)
+        close(param->sock);
 
     return 0;
 }
