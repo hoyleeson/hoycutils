@@ -55,4 +55,6 @@
 #define BUILD_BUG_ON_ZERO(e) (sizeof(struct { int:-!!(e); }))
 #define BUILD_BUG_ON_NULL(e) ((void *)sizeof(struct { int:-!!(e); }))
 
+#define static_assert(expr) do { int _array[(expr) ? 1 : -1]; (void) _array[0]; } while (0) 
+
 #endif
