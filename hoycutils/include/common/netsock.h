@@ -115,7 +115,7 @@ struct netsock_operations {
 	int (*init)(struct netsock *nsock);
 	void (*release)(struct netsock *nsock);
 	int (*send)(struct netsock *nsock, void *buf, int len);
-	int (*serv_send)(struct netsock *nsock, void *session, void *buf, int len);
+	int (*send_by_session)(struct netsock *nsock, void *session, void *buf, int len);
 	int (*recv)(struct netsock *nsock, _out void *buf, int len);
 	int (*recv_timeout)(struct netsock *nsock, _out void *buf, int len, unsigned long timeout);
 };

@@ -41,7 +41,7 @@ static void run_recv_process(struct netsock* nsock);
 * @brief   dgram_init
 * 
 * initialize the udp trans module. 
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1:input infomation structure.
 * @return int return success or failed
@@ -112,7 +112,7 @@ failed:
 * @brief   dgram_recv
 * 
 * udp receive data function.
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1:input infomation structure.
 * @return int return success or failed
@@ -143,7 +143,7 @@ static int dgram_recv(struct netsock* nsock, void* data, int len)
 * @brief   dgram_recv_timeout
 * 
 * udp receive data function.
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1:input infomation structure.
 * @return int return success or failed
@@ -190,7 +190,7 @@ static int dgram_recv_timeout(struct netsock* nsock, void* data, int len, unsign
 * @brief   dgram_recv_thread
 * 
 * udp receive thread.
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1:input infomation structure.
 * @return int return success or failed
@@ -275,7 +275,7 @@ static void run_recv_process(struct netsock* nsock)
 * @brief   dgram_send
 * 
 * dgram_send
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1: send data.
 * @param[in] arg1: send lenght.
@@ -296,11 +296,11 @@ static int dgram_send(struct netsock* nsock, void* data, int len)
 
 
 /**
-* @brief   dgram_serv_send
+* @brief   dgram_send_by_session
 * 
 * when the library to be call by the server, 
 * use this function send data. reserved method.
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1: send data.
 * @param[in] arg1: send lenght.
@@ -308,7 +308,7 @@ static int dgram_send(struct netsock* nsock, void* data, int len)
 * @retval returns zero on success
 * @retval return a non-zero error code if failed
 */
-int dgram_serv_send(struct netsock *nsock, void *session, void *buf, int len)
+int dgram_send_by_session(struct netsock *nsock, void *session, void *buf, int len)
 {
 	struct sock_dgram* dgram = nsock->private_data;
 	struct connection* conn = (struct connection*)session;
@@ -325,7 +325,7 @@ int dgram_serv_send(struct netsock *nsock, void *session, void *buf, int len)
 * @brief   dgram_release
 * 
 * call this function destory the resource.
-* @author Li_Xinhai
+* @author hoyleeson
 * @date 2012-06-26
 * @param[in] arg1:input infomation structure.
 * @return int return success or failed
@@ -345,7 +345,7 @@ struct netsock_operations dgram_ops = {
     .init       = dgram_init,
 	.release    = dgram_release,
 	.send       = dgram_send,
-	.serv_send  = dgram_serv_send,
+	.send_by_session  = dgram_send_by_session,
 	.recv       = dgram_recv,
 	.recv_timeout = dgram_recv_timeout,
 };

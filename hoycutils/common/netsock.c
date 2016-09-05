@@ -154,7 +154,7 @@ int netsock_send(void* handle, void* buf, int len)
 }
 
 
-int netsock_serv_send(void* handle, void* session, void* buf, int len)
+int netsock_send_by_session(void* handle, void* session, void* buf, int len)
 {
 	int ret;
 	struct netsock* nsock;
@@ -166,7 +166,7 @@ int netsock_serv_send(void* handle, void* session, void* buf, int len)
 	
 	pthread_mutex_lock(&nsock->s_lock);
 	
-	ret = nsock->netsock_ops->serv_send(nsock, session, buf, len);	
+	ret = nsock->netsock_ops->send_by_session(nsock, session, buf, len);	
 
 	pthread_mutex_unlock(&nsock->s_lock);
 	return ret;

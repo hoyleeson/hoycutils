@@ -50,7 +50,7 @@ static void* stream_listen_thread(void* args);
  * @brief   stream_init
  * 
  * initialize the tcp trans module. 
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -118,7 +118,7 @@ failed:
  * @brief   stream_listen
  * 
  * Create stream_listen thread. 
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -137,7 +137,7 @@ static int stream_listen(struct netsock* nsock)
  * @brief   stream_connect
  * 
  * client call this function connect the server 
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -215,7 +215,7 @@ static int stream_connect(struct netsock* nsock)
  * @brief   stream_recv
  * 
  * tcp receive data function.
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -247,7 +247,7 @@ static int stream_recv(struct netsock* nsock, void* data, int len)
  * @brief   stream_recv_timeout
  * 
  * tcp receive data function.
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -270,10 +270,10 @@ static int stream_recv_timeout(struct netsock* nsock, void* data, int len, unsig
     FD_ZERO(&rset);
     FD_SET(stream->sock, &rset);
 
-    timeout.tv_sec = ms/1000;
-    timeout.tv_usec = ms%1000;
+    timeout.tv_sec = ms / 1000;
+    timeout.tv_usec = ms % 1000;
 
-    nready = select(stream->sock+1, &rset, NULL, NULL, &timeout);
+    nready = select(stream->sock + 1, &rset, NULL, NULL, &timeout);
     if(nready < 0) {
         return -1;
     } else if(nready == 0) {
@@ -294,7 +294,7 @@ static int stream_recv_timeout(struct netsock* nsock, void* data, int len, unsig
  * @brief   stream_send
  * 
  * stream_send
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1: send data.
  * @param[in] arg1: send lenght.
@@ -314,11 +314,11 @@ static int stream_send(struct netsock* nsock, void* data, int len)
 
 
 /**
- * @brief   stream_serv_send
+ * @brief   stream_send_by_session
  * 
  * when the library to be call by the server, 
  * use this function send data. reserved method.
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1: send data.
  * @param[in] arg1: send lenght.
@@ -326,7 +326,7 @@ static int stream_send(struct netsock* nsock, void* data, int len)
  * @retval returns zero on success
  * @retval return a non-zero error code if failed
  */
-static int stream_serv_send(struct netsock *nsock, void *session, void *buf, int len)
+static int stream_send_by_session(struct netsock *nsock, void *session, void *buf, int len)
 {
     int ret;
     struct connection* conn = (struct connection*)session;
@@ -341,7 +341,7 @@ static int stream_serv_send(struct netsock *nsock, void *session, void *buf, int
  * @brief   stream_release
  * 
  * call this function destory the resource.
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -362,7 +362,7 @@ static void stream_release(struct netsock* nsock)
  * @brief   process_connection
  * 
  * process_connection.
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -440,7 +440,7 @@ static void run_recv_process(struct netsock* nsock, int sock)
  * @brief   stream_listen_thread
  * 
  * stream_listen_thread.
- * @author Li_Xinhai
+ * @author hoyleeson
  * @date 2012-06-26
  * @param[in] arg1:input infomation structure.
  * @return int return success or failed
@@ -488,7 +488,7 @@ struct netsock_operations stream_ops = {
     .init       =  stream_init,
     .release    =  stream_release,
     .send       =  stream_send,
-    .serv_send  =  stream_serv_send,
+    .send_by_session  =  stream_send_by_session,
     .recv       =  stream_recv,
     .recv_timeout = stream_recv_timeout,
 };
