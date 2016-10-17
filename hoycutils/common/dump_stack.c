@@ -69,12 +69,11 @@ void dump_stack(void)
         g_handle = dlopen(PATH, RTLD_NOW);
 
     // get the interface for unwind and symbol analyse
-    if(g_handle != NULL) 
+    if(g_handle != NULL) {
         unwind_backtrace = (unwindFn)dlsym(g_handle, "unwind_backtrace");
-    if(g_handle != NULL) 
         get_backtrace_symbols = (unwindSymbFn)dlsym(g_handle, "get_backtrace_symbols");
-    if(g_handle != NULL) 
         free_backtrace_symbols = (unwindSymbFreeFn)dlsym(g_handle, "free_backtrace_symbols");
+    }
 
     if(!g_handle ||!unwind_backtrace ||
             !get_backtrace_symbols || !free_backtrace_symbols  ) {
