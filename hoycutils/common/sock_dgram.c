@@ -58,6 +58,7 @@ static int dgram_init(struct netsock* nsock)
 	if(!dgram)
 		fatal("alloc sock dgram failed.\n");
 
+    memset(dgram, 0, sizeof(*dgram));
 	if((dgram->sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		loge("create dgram socket failed. ret is %d\n", dgram->sock);
         ret = -EINVAL;

@@ -68,6 +68,7 @@ static int stream_init(struct netsock* nsock)
     if(!stream)
         fatal("alloc tcp info struct fail.\n");
 
+    memset(stream, 0, sizeof(*stream));
     stream->sock = socket(AF_INET, SOCK_STREAM, 0);
     if (stream->sock == -1) {
 		loge("create stream socket failed. ret is %d\n", stream->sock);
